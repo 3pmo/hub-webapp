@@ -6,6 +6,7 @@
     <title>3PMO Hub — Thought Organizer</title>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <!-- Mermaid.js for embedded diagram rendering -->
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
@@ -892,15 +893,16 @@
     </style>
 </head>
 <body>
-    <!-- Password Protection Overlay -->
-    <!-- TODO: Migrate to Firebase Auth for proper authentication -->
-    <div class="password-overlay" id="passwordOverlay">
+    <!-- Firebase Auth Login Overlay -->
+    <div class="password-overlay" id="authOverlay">
         <div class="password-box">
             <h2>3PMO Hub</h2>
-            <p>Enter password to access</p>
-            <input type="password" id="passwordInput" placeholder="Password" onkeypress="if(event.key==='Enter')checkPassword()">
-            <button onclick="checkPassword()">Enter</button>
-            <p class="error" id="passwordError">Incorrect password</p>
+            <p id="authSubtitle">Sign in to access</p>
+            <input type="email" id="authEmail" placeholder="Email" autocomplete="email">
+            <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password" onkeypress="if(event.key==='Enter')handleAuth()">
+            <button id="authBtn" onclick="handleAuth()">Sign In</button>
+            <p class="auth-toggle" id="authToggle" style="margin-top: 12px; font-size: 0.85rem; color: var(--muted); cursor: pointer;" onclick="toggleAuthMode()">Need an account? <span style="color: var(--pmo-green); font-weight: bold;">Sign Up</span></p>
+            <p class="error" id="authError" style="display: none;"></p>
         </div>
     </div>
 
@@ -915,7 +917,11 @@
                     <span>Personal Productivity Hub</span>
                 </div>
             </div>
-            <div class="hub-badge">Cloud Synced</div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div class="hub-badge">Cloud Synced</div>
+                <span id="userEmail" style="color: var(--pmo-grey); font-size: 0.75rem;"></span>
+                <button id="signOutBtn" onclick="signOut()" style="background: none; border: 1px solid var(--pmo-grey); color: #eaeaea; padding: 4px 12px; border-radius: 5px; font-size: 0.75rem; cursor: pointer; font-family: 'Verdana', sans-serif; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--pmo-green)';this.style.color='var(--pmo-green)'" onmouseout="this.style.borderColor='var(--pmo-grey)';this.style.color='#eaeaea'">Sign Out</button>
+            </div>
         </div>
 
         <!-- Content Area -->
@@ -1325,30 +1331,89 @@
 
     <script>
         // ==========================================
-        // PASSWORD PROTECTION
-        // TODO: Migrate to Firebase Auth for proper authentication
+        // FIREBASE AUTHENTICATION
         // ==========================================
-        const APP_PASSWORD = 'jb6qxnAfylXb';
-        const AUTH_KEY = 'hub_webapp_auth';
+        let isSignUpMode = false;
 
-        function checkPassword() {
-            const input = document.getElementById('passwordInput').value;
-            if (input === APP_PASSWORD) {
-                localStorage.setItem(AUTH_KEY, 'authenticated');
-                document.getElementById('passwordOverlay').classList.add('hidden');
-                document.getElementById('appContent').classList.add('visible');
-                initFirebase();
-                loadThoughts();
+        function toggleAuthMode() {
+            isSignUpMode = !isSignUpMode;
+            const btn = document.getElementById('authBtn');
+            const toggle = document.getElementById('authToggle');
+            const subtitle = document.getElementById('authSubtitle');
+            if (isSignUpMode) {
+                btn.textContent = 'Sign Up';
+                subtitle.textContent = 'Create your account';
+                toggle.innerHTML = 'Already have an account? <span style="color: var(--pmo-green); font-weight: bold;">Sign In</span>';
             } else {
-                document.getElementById('passwordError').style.display = 'block';
-                document.getElementById('passwordInput').value = '';
+                btn.textContent = 'Sign In';
+                subtitle.textContent = 'Sign in to access';
+                toggle.innerHTML = 'Need an account? <span style="color: var(--pmo-green); font-weight: bold;">Sign Up</span>';
+            }
+            document.getElementById('authError').style.display = 'none';
+        }
+
+        function showAuthError(msg) {
+            const el = document.getElementById('authError');
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
+
+        async function handleAuth() {
+            const email = document.getElementById('authEmail').value.trim();
+            const password = document.getElementById('authPassword').value;
+
+            if (!email || !password) {
+                showAuthError('Email and password required');
+                return;
+            }
+
+            const btn = document.getElementById('authBtn');
+            btn.disabled = true;
+            btn.textContent = isSignUpMode ? 'Creating...' : 'Signing in...';
+            document.getElementById('authError').style.display = 'none';
+
+            try {
+                if (isSignUpMode) {
+                    await firebase.auth().createUserWithEmailAndPassword(email, password);
+                } else {
+                    await firebase.auth().signInWithEmailAndPassword(email, password);
+                }
+            } catch (e) {
+                let msg = 'Authentication failed';
+                switch (e.code) {
+                    case 'auth/user-not-found': msg = 'No account found with this email'; break;
+                    case 'auth/wrong-password': msg = 'Incorrect password'; break;
+                    case 'auth/invalid-credential': msg = 'Invalid email or password'; break;
+                    case 'auth/email-already-in-use': msg = 'An account with this email already exists'; break;
+                    case 'auth/weak-password': msg = 'Password must be at least 6 characters'; break;
+                    case 'auth/invalid-email': msg = 'Invalid email address'; break;
+                    case 'auth/too-many-requests': msg = 'Too many attempts. Try again later'; break;
+                }
+                showAuthError(msg);
+                btn.disabled = false;
+                btn.textContent = isSignUpMode ? 'Sign Up' : 'Sign In';
             }
         }
 
-        // Check if already authenticated
-        if (localStorage.getItem(AUTH_KEY) === 'authenticated') {
-            document.getElementById('passwordOverlay').classList.add('hidden');
-            document.getElementById('appContent').classList.add('visible');
+        function signOut() {
+            firebase.auth().signOut();
+        }
+
+        function onAuthReady(user) {
+            if (user) {
+                document.getElementById('authOverlay').classList.add('hidden');
+                document.getElementById('appContent').classList.add('visible');
+                document.getElementById('userEmail').textContent = user.email;
+                initDatabase();
+                loadThoughts();
+            } else {
+                document.getElementById('authOverlay').classList.remove('hidden');
+                document.getElementById('appContent').classList.remove('visible');
+                document.getElementById('userEmail').textContent = '';
+                const btn = document.getElementById('authBtn');
+                btn.disabled = false;
+                btn.textContent = isSignUpMode ? 'Sign Up' : 'Sign In';
+            }
         }
 
         // ==========================================
@@ -1368,15 +1433,23 @@
         let thoughtsRef = null;
         let firebaseReady = false;
 
-        function initFirebase() {
+        // Initialize Firebase app + auth listener immediately
+        try {
+            firebase.initializeApp(firebaseConfig);
+            firebase.auth().onAuthStateChanged(onAuthReady);
+        } catch (e) {
+            console.error('Firebase init error:', e);
+        }
+
+        function initDatabase() {
+            if (firebaseReady) return;
             try {
-                firebase.initializeApp(firebaseConfig);
                 db = firebase.database();
                 thoughtsRef = db.ref('thoughts');
                 firebaseReady = true;
                 console.log('Firebase Realtime Database initialized');
             } catch (e) {
-                console.error('Firebase init error:', e);
+                console.error('Database init error:', e);
                 firebaseReady = false;
             }
         }
@@ -2447,6 +2520,9 @@
         }
 
         // Make functions available globally for onclick handlers
+        window.handleAuth = handleAuth;
+        window.toggleAuthMode = toggleAuthMode;
+        window.signOut = signOut;
         window.deleteThought = deleteThought;
         window.editThought = editThought;
         window.exportData = exportData;
@@ -2459,10 +2535,8 @@
         // ==========================================
         // INITIAL LOAD
         // ==========================================
-        if (localStorage.getItem(AUTH_KEY) === 'authenticated') {
-            initFirebase();
-            loadThoughts();
-        }
+        // Auth state is handled by onAuthStateChanged listener above.
+        // No manual init needed — Firebase Auth persists sessions automatically.
     </script>
 </body>
 </html>
