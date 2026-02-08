@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3PMO Ecosystem Hub</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --surface: #16213e;
+            --surface-2: #1e2a47;
+            --primary: #0f3460;
+            --accent: #e94560;
+            --text: #eaeaea;
+            --muted: #888;
+            --success: #4ecca3;
+            --warning: #ffc107;
+            --error: #e94560;
+            --pmo-green: #4ecca3;
+            --pmo-coral: #e94560;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Verdana', Geneva, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--surface) 0%, var(--primary) 100%);
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid var(--accent);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-icon {
+            width: 45px;
+            height: 45px;
+            background: var(--accent);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .logo-text h1 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        .logo-text span {
+            font-size: 0.75rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 30px;
+        }
+
+        .header-stat {
+            text-align: center;
+        }
+
+        .header-stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--pmo-green);
+        }
+
+        .header-stat-label {
+            font-size: 0.7rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Main Navigation Tabs */
+        .main-nav {
+            background: var(--surface);
+            padding: 0 20px;
+            display: flex;
+            gap: 5px;
+            border-bottom: 1px solid var(--primary);
+            overflow-x: auto;
+        }
+
+        .nav-tab {
+            padding: 15px 25px;
+            background: transparent;
+            border: none;
+            color: var(--muted);
+            cursor: pointer;
+            font-family: 'Verdana', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+
+        .nav-tab:hover {
+            color: var(--text);
+            background: var(--surface-2);
+        }
+
+        .nav-tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+            background: var(--surface-2);
+        }
+
+        .nav-tab .tab-icon {
+            font-size: 1.1rem;
+        }
+
+        .nav-tab .tab-badge {
+            background: var(--accent);
+            color: white;
+            font-size: 0.65rem;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+
+        .nav-tab .tab-badge.success {
+            background: var(--success);
+            color: #000;
+        }
+
+        /* Content Area */
+        .content {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--primary);
+        }
+
+        .stat-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .stat-card-title {
+            font-size: 0.8rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-card-icon {
+            font-size: 1.2rem;
+        }
+
+        .stat-card-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--text);
+        }
+
+        .stat-card-change {
+            font-size: 0.8rem;
+            margin-top: 5px;
+        }
+
+        .stat-card-change.positive {
+            color: var(--success);
+        }
+
+        .stat-card-change.negative {
+            color: var(--error);
+        }
+
+        /* Activity Feed */
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .section-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .activity-feed {
+            background: var(--surface);
+            border-radius: 12px;
+            border: 1px solid var(--primary);
+            overflow: hidden;
+        }
+
+        .activity-item {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--primary);
+            gap: 15px;
+        }
+
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+
+        .activity-item:hover {
+            background: var(--surface-2);
+        }
+
+        .activity-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        .activity-icon.agent {
+            background: rgba(78, 204, 163, 0.2);
+        }
+
+        .activity-icon.deploy {
+            background: rgba(233, 69, 96, 0.2);
+        }
+
+        .activity-icon.commit {
+            background: rgba(100, 100, 255, 0.2);
+        }
+
+        .activity-icon.error {
+            background: rgba(233, 69, 96, 0.2);
+        }
+
+        .activity-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .activity-title {
+            font-weight: 500;
+            margin-bottom: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .activity-meta {
+            font-size: 0.8rem;
+            color: var(--muted);
+            display: flex;
+            gap: 15px;
+        }
+
+        .activity-status {
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .activity-status.success {
+            background: rgba(78, 204, 163, 0.2);
+            color: var(--success);
+        }
+
+        .activity-status.pending {
+            background: rgba(255, 193, 7, 0.2);
+            color: var(--warning);
+        }
+
+        .activity-status.error {
+            background: rgba(233, 69, 96, 0.2);
+            color: var(--error);
+        }
+
+        /* Agent Cards */
+        .agents-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .agent-card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--primary);
+        }
+
+        .agent-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .agent-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .agent-avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            background: var(--primary);
+        }
+
+        .agent-name {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .agent-type {
+            font-size: 0.75rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .agent-status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+
+        .agent-status-dot.inactive {
+            background: var(--muted);
+        }
+
+        .agent-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            padding-top: 15px;
+            border-top: 1px solid var(--primary);
+        }
+
+        .agent-stat {
+            text-align: center;
+        }
+
+        .agent-stat-value {
+            font-size: 1.3rem;
+            font-weight: bold;
+        }
+
+        .agent-stat-label {
+            font-size: 0.7rem;
+            color: var(--muted);
+            text-transform: uppercase;
+        }
+
+        /* Progress Bar */
+        .progress-bar {
+            height: 6px;
+            background: var(--primary);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--success);
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+
+        /* App Cards */
+        .apps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .app-card {
+            background: var(--surface);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--primary);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .app-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .app-card-header {
+            padding: 20px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--surface-2) 100%);
+            border-bottom: 1px solid var(--primary);
+        }
+
+        .app-card-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .app-card-desc {
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+
+        .app-card-body {
+            padding: 20px;
+        }
+
+        .app-card-stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .app-card-stat {
+            text-align: center;
+        }
+
+        .app-card-stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--pmo-green);
+        }
+
+        .app-card-stat-label {
+            font-size: 0.7rem;
+            color: var(--muted);
+            text-transform: uppercase;
+        }
+
+        .app-card-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Verdana', sans-serif;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #c73e54;
+        }
+
+        .btn-secondary {
+            background: var(--primary);
+            color: var(--text);
+        }
+
+        .btn-secondary:hover {
+            background: var(--surface-2);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: #000;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 0.75rem;
+        }
+
+        /* Tables */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--surface);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--primary);
+        }
+
+        .data-table th {
+            background: var(--surface-2);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        .data-table tr:hover {
+            background: var(--surface-2);
+        }
+
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Iframe Container */
+        .app-iframe-container {
+            background: var(--surface);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--primary);
+        }
+
+        .app-iframe-header {
+            padding: 15px 20px;
+            background: var(--surface-2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--primary);
+        }
+
+        .app-iframe-title {
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .app-iframe {
+            width: 100%;
+            height: calc(100vh - 250px);
+            min-height: 600px;
+            border: none;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--success);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 1001;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--muted);
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+
+        .empty-state-title {
+            font-size: 1.2rem;
+            color: var(--text);
+            margin-bottom: 10px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .header-stats {
+                gap: 20px;
+            }
+
+            .main-nav {
+                padding: 0 10px;
+            }
+
+            .nav-tab {
+                padding: 12px 15px;
+                font-size: 0.8rem;
+            }
+
+            .content {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="logo">
+            <div class="logo-icon">🤖</div>
+            <div class="logo-text">
+                <h1>3PMO Ecosystem Hub</h1>
+                <span>Agent Orchestration Dashboard</span>
+            </div>
+        </div>
+        <div class="header-stats">
+            <div class="header-stat">
+                <div class="header-stat-value" id="headerActiveAgents">0</div>
+                <div class="header-stat-label">Active Agents</div>
+            </div>
+            <div class="header-stat">
+                <div class="header-stat-value" id="headerTasksToday">0</div>
+                <div class="header-stat-label">Tasks Today</div>
+            </div>
+            <div class="header-stat">
+                <div class="header-stat-value" id="headerSuccessRate">-</div>
+                <div class="header-stat-label">Success Rate</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Navigation -->
+    <nav class="main-nav">
+        <button class="nav-tab active" data-tab="agent-stats">
+            <span class="tab-icon">📊</span>
+            Agent Stats
+        </button>
+        <button class="nav-tab" data-tab="thought-organizer">
+            <span class="tab-icon">💭</span>
+            Thought Organizer
+            <span class="tab-badge success" id="thoughtsCount">0</span>
+        </button>
+        <button class="nav-tab" data-tab="uae-job-create">
+            <span class="tab-icon">💼</span>
+            UAE Job Create
+            <span class="tab-badge">Soon</span>
+        </button>
+        <button class="nav-tab" data-tab="all-apps">
+            <span class="tab-icon">📱</span>
+            All Applications
+        </button>
+        <button class="nav-tab" data-tab="settings">
+            <span class="tab-icon">⚙️</span>
+            Settings
+        </button>
+    </nav>
+
+    <!-- Content -->
+    <main class="content">
+        <!-- Agent Stats Tab -->
+        <div id="agent-stats" class="tab-content active">
+            <!-- Summary Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <span class="stat-card-title">Total Tasks</span>
+                        <span class="stat-card-icon">📋</span>
+                    </div>
+                    <div class="stat-card-value" id="statTotalTasks">0</div>
+                    <div class="stat-card-change positive" id="statTasksChange">+0 today</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <span class="stat-card-title">Success Rate</span>
+                        <span class="stat-card-icon">✅</span>
+                    </div>
+                    <div class="stat-card-value" id="statSuccessRate">-</div>
+                    <div class="stat-card-change positive">Target: 95%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <span class="stat-card-title">Deployments</span>
+                        <span class="stat-card-icon">🚀</span>
+                    </div>
+                    <div class="stat-card-value" id="statDeployments">0</div>
+                    <div class="stat-card-change positive" id="statDeploysChange">+0 today</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <span class="stat-card-title">Active Agents</span>
+                        <span class="stat-card-icon">🤖</span>
+                    </div>
+                    <div class="stat-card-value" id="statActiveAgents">0</div>
+                    <div class="stat-card-change">of 60+ available</div>
+                </div>
+            </div>
+
+            <!-- Active Agents -->
+            <div class="section-header">
+                <h2 class="section-title">Active Agents</h2>
+                <div class="section-actions">
+                    <button class="btn btn-secondary btn-small" onclick="refreshAgents()">🔄 Refresh</button>
+                </div>
+            </div>
+            <div class="agents-grid" id="agentsGrid">
+                <!-- Populated by JS -->
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="section-header">
+                <h2 class="section-title">Recent Activity</h2>
+                <div class="section-actions">
+                    <button class="btn btn-secondary btn-small" onclick="loadActivity()">🔄 Refresh</button>
+                    <button class="btn btn-secondary btn-small" onclick="exportActivity()">📥 Export</button>
+                </div>
+            </div>
+            <div class="activity-feed" id="activityFeed">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Thought Organizer Tab -->
+        <div id="thought-organizer" class="tab-content">
+            <div class="app-iframe-container">
+                <div class="app-iframe-header">
+                    <span class="app-iframe-title">
+                        💭 Thought Organizer
+                        <span class="activity-status success">Live</span>
+                    </span>
+                    <div>
+                        <button class="btn btn-secondary btn-small" onclick="window.open('https://thought-organizer-79aff.web.app/', '_blank')">
+                            ↗️ Open in New Tab
+                        </button>
+                    </div>
+                </div>
+                <iframe
+                    class="app-iframe"
+                    src="https://thought-organizer-79aff.web.app/"
+                    title="Thought Organizer"
+                    id="thoughtOrganizerFrame"
+                    allow="microphone"
+                ></iframe>
+            </div>
+        </div>
+
+        <!-- UAE Job Create Tab -->
+        <div id="uae-job-create" class="tab-content">
+            <div class="empty-state">
+                <div class="empty-state-icon">🚧</div>
+                <h3 class="empty-state-title">Coming Soon</h3>
+                <p>UAE Job Create application is currently in development.</p>
+                <button class="btn btn-primary" style="margin-top: 20px;" onclick="showToast('You\'ll be notified when it\'s ready!')">
+                    🔔 Notify Me
+                </button>
+            </div>
+        </div>
+
+        <!-- All Applications Tab -->
+        <div id="all-apps" class="tab-content">
+            <div class="section-header">
+                <h2 class="section-title">Applications</h2>
+                <div class="section-actions">
+                    <button class="btn btn-primary btn-small" onclick="showToast('Create app wizard coming soon!')">
+                        ➕ New Application
+                    </button>
+                </div>
+            </div>
+            <div class="apps-grid" id="appsGrid">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="settings" class="tab-content">
+            <div class="section-header">
+                <h2 class="section-title">Ecosystem Settings</h2>
+            </div>
+            <div class="stat-card" style="max-width: 600px;">
+                <h3 style="margin-bottom: 20px; color: var(--accent);">Firebase Configuration</h3>
+                <table class="data-table">
+                    <tr>
+                        <td style="color: var(--muted);">Project ID</td>
+                        <td>thought-organizer-79aff</td>
+                    </tr>
+                    <tr>
+                        <td style="color: var(--muted);">Database Region</td>
+                        <td>europe-west1</td>
+                    </tr>
+                    <tr>
+                        <td style="color: var(--muted);">Stats Endpoint</td>
+                        <td style="font-size: 0.8rem; word-break: break-all;">/ecosystem-stats</td>
+                    </tr>
+                </table>
+                <div style="margin-top: 20px;">
+                    <button class="btn btn-secondary btn-small" onclick="testFirebaseConnection()">🔌 Test Connection</button>
+                    <button class="btn btn-secondary btn-small" onclick="resetStats()">🗑️ Reset Stats</button>
+                </div>
+            </div>
+
+            <div class="stat-card" style="max-width: 600px; margin-top: 20px;">
+                <h3 style="margin-bottom: 20px; color: var(--accent);">Registered Applications</h3>
+                <table class="data-table" id="registeredAppsTable">
+                    <thead>
+                        <tr>
+                            <th>App ID</th>
+                            <th>Name</th>
+                            <th>Status</th>
+                            <th>URL</th>
+                        </tr>
+                    </thead>
+                    <tbody id="registeredAppsBody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <div class="toast" id="toast">Saved!</div>
+
+    <script>
+        // ==========================================
+        // FIREBASE CONFIGURATION
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyAmop_lDas7esIXMjPlmZRcFk7S1b3JukA",
+            authDomain: "thought-organizer-79aff.firebaseapp.com",
+            databaseURL: "https://thought-organizer-79aff-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "thought-organizer-79aff",
+            storageBucket: "thought-organizer-79aff.firebasestorage.app",
+            messagingSenderId: "372144571928",
+            appId: "1:372144571928:web:0b2809e88d44b9f0f4256d"
+        };
+
+        let db = null;
+        let statsRef = null;
+        let activityRef = null;
+        let thoughtsRef = null;
+
+        function initFirebase() {
+            try {
+                firebase.initializeApp(firebaseConfig);
+                db = firebase.database();
+                statsRef = db.ref('ecosystem-stats');
+                activityRef = db.ref('ecosystem-activity');
+                thoughtsRef = db.ref('thoughts');
+                console.log('Firebase initialized for Ecosystem Hub');
+
+                // Load initial data
+                loadStats();
+                loadActivity();
+                loadAgents();
+                loadThoughtsCount();
+                loadApps();
+
+                // Set up real-time listeners
+                setupRealtimeListeners();
+            } catch (e) {
+                console.error('Firebase init error:', e);
+            }
+        }
+
+        // ==========================================
+        // TAB NAVIGATION
+        // ==========================================
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+            });
+        });
+
+        // ==========================================
+        // DATA LOADING
+        // ==========================================
+        async function loadStats() {
+            try {
+                const snapshot = await statsRef.child('summary').once('value');
+                const stats = snapshot.val() || {
+                    totalTasks: 0,
+                    successfulTasks: 0,
+                    deployments: 0,
+                    activeAgents: 0,
+                    tasksToday: 0,
+                    deploysToday: 0
+                };
+
+                document.getElementById('statTotalTasks').textContent = stats.totalTasks || 0;
+                document.getElementById('statTasksChange').textContent = `+${stats.tasksToday || 0} today`;
+
+                const successRate = stats.totalTasks > 0
+                    ? Math.round((stats.successfulTasks / stats.totalTasks) * 100)
+                    : 0;
+                document.getElementById('statSuccessRate').textContent = successRate + '%';
+                document.getElementById('headerSuccessRate').textContent = successRate + '%';
+
+                document.getElementById('statDeployments').textContent = stats.deployments || 0;
+                document.getElementById('statDeploysChange').textContent = `+${stats.deploysToday || 0} today`;
+
+                document.getElementById('statActiveAgents').textContent = stats.activeAgents || 0;
+                document.getElementById('headerActiveAgents').textContent = stats.activeAgents || 0;
+                document.getElementById('headerTasksToday').textContent = stats.tasksToday || 0;
+            } catch (e) {
+                console.error('Error loading stats:', e);
+            }
+        }
+
+        async function loadActivity() {
+            try {
+                const snapshot = await activityRef.orderByChild('timestamp').limitToLast(20).once('value');
+                const data = snapshot.val();
+                const feed = document.getElementById('activityFeed');
+
+                if (!data) {
+                    feed.innerHTML = `
+                        <div class="empty-state" style="padding: 40px;">
+                            <div class="empty-state-icon">📭</div>
+                            <p>No activity recorded yet</p>
+                            <button class="btn btn-primary btn-small" style="margin-top: 15px;" onclick="recordSampleActivity()">
+                                Add Sample Activity
+                            </button>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const activities = Object.entries(data)
+                    .map(([id, activity]) => ({ id, ...activity }))
+                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                feed.innerHTML = activities.map(a => `
+                    <div class="activity-item">
+                        <div class="activity-icon ${a.type || 'agent'}">
+                            ${getActivityIcon(a.type)}
+                        </div>
+                        <div class="activity-details">
+                            <div class="activity-title">${a.action || 'Unknown action'}</div>
+                            <div class="activity-meta">
+                                <span>🤖 ${a.agent || 'system'}</span>
+                                <span>📁 ${a.project || 'ecosystem'}</span>
+                                <span>🕐 ${formatTime(a.timestamp)}</span>
+                            </div>
+                        </div>
+                        <span class="activity-status ${a.status || 'success'}">${a.status || 'success'}</span>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error('Error loading activity:', e);
+            }
+        }
+
+        async function loadAgents() {
+            try {
+                const snapshot = await statsRef.child('agents').once('value');
+                const data = snapshot.val();
+                const grid = document.getElementById('agentsGrid');
+
+                // Default agents to show if none recorded
+                const defaultAgents = [
+                    { id: 'coder', name: 'Coder', type: 'development', icon: '💻', tasks: 0, success: 0 },
+                    { id: 'reviewer', name: 'Reviewer', type: 'quality', icon: '👀', tasks: 0, success: 0 },
+                    { id: 'workflow', name: 'Workflow', type: 'automation', icon: '🔄', tasks: 0, success: 0 },
+                    { id: 'researcher', name: 'Researcher', type: 'analysis', icon: '🔍', tasks: 0, success: 0 }
+                ];
+
+                const agents = data
+                    ? Object.entries(data).map(([id, agent]) => ({ id, ...agent }))
+                    : defaultAgents;
+
+                grid.innerHTML = agents.map(agent => {
+                    const successRate = agent.tasks > 0
+                        ? Math.round((agent.success / agent.tasks) * 100)
+                        : 0;
+                    return `
+                        <div class="agent-card">
+                            <div class="agent-card-header">
+                                <div class="agent-info">
+                                    <div class="agent-avatar">${agent.icon || '🤖'}</div>
+                                    <div>
+                                        <div class="agent-name">${agent.name || agent.id}</div>
+                                        <div class="agent-type">${agent.type || 'general'}</div>
+                                    </div>
+                                </div>
+                                <div class="agent-status-dot ${agent.active ? '' : 'inactive'}"></div>
+                            </div>
+                            <div class="agent-stats">
+                                <div class="agent-stat">
+                                    <div class="agent-stat-value">${agent.tasks || 0}</div>
+                                    <div class="agent-stat-label">Tasks</div>
+                                </div>
+                                <div class="agent-stat">
+                                    <div class="agent-stat-value" style="color: var(--success)">${successRate}%</div>
+                                    <div class="agent-stat-label">Success</div>
+                                </div>
+                                <div class="agent-stat">
+                                    <div class="agent-stat-value">${agent.lastActive ? formatTime(agent.lastActive) : '-'}</div>
+                                    <div class="agent-stat-label">Last Active</div>
+                                </div>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${successRate}%"></div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (e) {
+                console.error('Error loading agents:', e);
+            }
+        }
+
+        async function loadThoughtsCount() {
+            try {
+                const snapshot = await thoughtsRef.once('value');
+                const data = snapshot.val();
+                const count = data ? Object.keys(data).length : 0;
+                document.getElementById('thoughtsCount').textContent = count;
+            } catch (e) {
+                console.error('Error loading thoughts count:', e);
+            }
+        }
+
+        function loadApps() {
+            const apps = [
+                {
+                    id: 'thought-organizer',
+                    name: 'Thought Organizer',
+                    icon: '💭',
+                    description: 'Voice-enabled priority and task management',
+                    status: 'live',
+                    url: 'https://thought-organizer-79aff.web.app',
+                    stats: { items: 11, lastSync: 'Just now' }
+                },
+                {
+                    id: 'uae-job-create',
+                    name: 'UAE Job Create',
+                    icon: '💼',
+                    description: 'Job creation opportunities research',
+                    status: 'development',
+                    url: null,
+                    stats: { items: 0, lastSync: '-' }
+                },
+                {
+                    id: 'ecosystem-hub',
+                    name: 'Ecosystem Hub',
+                    icon: '🤖',
+                    description: 'Agent orchestration dashboard (this app)',
+                    status: 'live',
+                    url: window.location.href,
+                    stats: { items: 60, lastSync: 'Just now' }
+                }
+            ];
+
+            // Apps Grid
+            const grid = document.getElementById('appsGrid');
+            grid.innerHTML = apps.map(app => `
+                <div class="app-card">
+                    <div class="app-card-header">
+                        <div class="app-card-title">
+                            ${app.icon} ${app.name}
+                            <span class="activity-status ${app.status === 'live' ? 'success' : 'pending'}">${app.status}</span>
+                        </div>
+                        <div class="app-card-desc">${app.description}</div>
+                    </div>
+                    <div class="app-card-body">
+                        <div class="app-card-stats">
+                            <div class="app-card-stat">
+                                <div class="app-card-stat-value">${app.stats.items}</div>
+                                <div class="app-card-stat-label">Items</div>
+                            </div>
+                            <div class="app-card-stat">
+                                <div class="app-card-stat-value">${app.stats.lastSync}</div>
+                                <div class="app-card-stat-label">Last Sync</div>
+                            </div>
+                        </div>
+                        <div class="app-card-actions">
+                            ${app.url
+                                ? `<button class="btn btn-primary btn-small" onclick="window.open('${app.url}', '_blank')">Open App</button>`
+                                : `<button class="btn btn-secondary btn-small" disabled>Coming Soon</button>`
+                            }
+                            <button class="btn btn-secondary btn-small" onclick="showAppDetails('${app.id}')">Details</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            // Settings table
+            const tbody = document.getElementById('registeredAppsBody');
+            tbody.innerHTML = apps.map(app => `
+                <tr>
+                    <td><code>${app.id}</code></td>
+                    <td>${app.icon} ${app.name}</td>
+                    <td><span class="activity-status ${app.status === 'live' ? 'success' : 'pending'}">${app.status}</span></td>
+                    <td style="font-size: 0.8rem;">${app.url ? `<a href="${app.url}" target="_blank" style="color: var(--accent);">Link</a>` : '-'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // ==========================================
+        // REAL-TIME UPDATES
+        // ==========================================
+        function setupRealtimeListeners() {
+            // Listen for new activity
+            activityRef.orderByChild('timestamp').limitToLast(1).on('child_added', (snapshot) => {
+                const activity = snapshot.val();
+                if (activity && Date.now() - new Date(activity.timestamp).getTime() < 60000) {
+                    showToast(`New: ${activity.action}`);
+                    loadActivity();
+                    loadStats();
+                }
+            });
+
+            // Listen for stats changes
+            statsRef.child('summary').on('value', (snapshot) => {
+                loadStats();
+            });
+        }
+
+        // ==========================================
+        // ACTIONS
+        // ==========================================
+        async function recordSampleActivity() {
+            const activities = [
+                { agent: 'coder', action: 'feat: add real-time priority score to edit modal', type: 'commit', project: 'thoughtorg', status: 'success' },
+                { agent: 'workflow', action: 'Deploy to Firebase Hosting', type: 'deploy', project: 'thoughtorg', status: 'success' },
+                { agent: 'reviewer', action: 'Code review completed', type: 'agent', project: 'thoughtorg', status: 'success' },
+                { agent: 'audit', action: 'Security scan completed', type: 'agent', project: 'ecosystem', status: 'success' }
+            ];
+
+            for (const activity of activities) {
+                await activityRef.push({
+                    ...activity,
+                    timestamp: new Date().toISOString()
+                });
+            }
+
+            // Update summary stats
+            await statsRef.child('summary').set({
+                totalTasks: 47,
+                successfulTasks: 44,
+                deployments: 5,
+                activeAgents: 4,
+                tasksToday: 12,
+                deploysToday: 2
+            });
+
+            // Update agent stats
+            await statsRef.child('agents').set({
+                coder: { name: 'Coder', type: 'development', icon: '💻', tasks: 25, success: 24, active: true, lastActive: new Date().toISOString() },
+                reviewer: { name: 'Reviewer', type: 'quality', icon: '👀', tasks: 10, success: 9, active: true, lastActive: new Date().toISOString() },
+                workflow: { name: 'Workflow', type: 'automation', icon: '🔄', tasks: 8, success: 8, active: true, lastActive: new Date().toISOString() },
+                audit: { name: 'Audit', type: 'security', icon: '🛡️', tasks: 4, success: 3, active: false, lastActive: new Date().toISOString() }
+            });
+
+            showToast('Sample activity recorded!');
+            loadActivity();
+            loadStats();
+            loadAgents();
+        }
+
+        function refreshAgents() {
+            loadAgents();
+            showToast('Agents refreshed');
+        }
+
+        function exportActivity() {
+            showToast('Export feature coming soon!');
+        }
+
+        async function testFirebaseConnection() {
+            try {
+                await db.ref('.info/connected').once('value');
+                showToast('✅ Firebase connection successful!');
+            } catch (e) {
+                showToast('❌ Connection failed: ' + e.message);
+            }
+        }
+
+        async function resetStats() {
+            if (confirm('Are you sure you want to reset all stats? This cannot be undone.')) {
+                await statsRef.remove();
+                await activityRef.remove();
+                showToast('Stats reset!');
+                loadStats();
+                loadActivity();
+                loadAgents();
+            }
+        }
+
+        function showAppDetails(appId) {
+            showToast(`Details for ${appId} - Coming soon!`);
+        }
+
+        // ==========================================
+        // UTILITIES
+        // ==========================================
+        function getActivityIcon(type) {
+            const icons = {
+                agent: '🤖',
+                deploy: '🚀',
+                commit: '📝',
+                error: '❌',
+                success: '✅'
+            };
+            return icons[type] || '📋';
+        }
+
+        function formatTime(timestamp) {
+            if (!timestamp) return '-';
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = now - date;
+
+            if (diff < 60000) return 'Just now';
+            if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+            return date.toLocaleDateString();
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // ==========================================
+        // INITIALIZE
+        // ==========================================
+        initFirebase();
+    </script>
+</body>
+</html>

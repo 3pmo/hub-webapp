@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "thought-organizer-79aff"
+  },
+  "targets": {
+    "thought-organizer-79aff": {
+      "hosting": {
+        "hub": [
+          "ecosystem-hub-3pmo"
+        ]
+      }
+    }
+  }
+}
