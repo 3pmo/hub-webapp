@@ -487,6 +487,11 @@
         .status-badge.deployed { background: rgba(196, 255, 97, 0.15); color: var(--ag-lime); }
         .status-badge.archived { background: rgba(127, 133, 137, 0.15); color: var(--pmo-grey); }
 
+        .status-chart-container {
+            position: relative;
+            height: 280px;
+        }
+
         .status-metrics-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -1420,11 +1425,13 @@
                 <!-- PROJECT: Status Dashboard -->
                 <div class="project-panel active" id="project-status">
                     <div class="project-tabs" data-project="status">
-                        <button class="project-tab active" data-tab="dashboard">Dashboard</button>
+                        <button class="project-tab active" data-tab="projects">Projects</button>
+                        <button class="project-tab" data-tab="metrics">Metrics</button>
+                        <button class="project-tab" data-tab="tokens">Tokens</button>
                     </div>
 
-                    <div id="status-dashboard" class="project-tab-content active">
-                        <!-- PROJECTS SECTION -->
+                    <!-- TAB: Projects -->
+                    <div id="status-projects" class="project-tab-content active">
                         <div class="status-card">
                             <div class="status-card-header">
                                 <h3>Active Projects</h3>
@@ -1444,24 +1451,32 @@
                                 </tbody>
                             </table>
                         </div>
+                    </div>
 
-                        <!-- PERFORMANCE SECTION -->
+                    <!-- TAB: Metrics -->
+                    <div id="status-metrics" class="project-tab-content">
                         <div class="status-metrics-grid">
                             <div class="status-card">
                                 <div class="status-card-header">
                                     <h3>Session Activity</h3>
                                 </div>
-                                <canvas id="statusSessionChart" height="200"></canvas>
+                                <div class="status-chart-container">
+                                    <canvas id="statusSessionChart"></canvas>
+                                </div>
                             </div>
                             <div class="status-card">
                                 <div class="status-card-header">
                                     <h3>Project Health</h3>
                                 </div>
-                                <canvas id="statusHealthChart" height="200"></canvas>
+                                <div class="status-chart-container">
+                                    <canvas id="statusHealthChart"></canvas>
+                                </div>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- TOKEN USAGE SECTION -->
+                    <!-- TAB: Tokens -->
+                    <div id="status-tokens" class="project-tab-content">
                         <div class="status-tokens-grid">
                             <div class="status-card status-token-card">
                                 <div class="status-card-header">
@@ -2102,9 +2117,11 @@
                 name: 'Status',
                 icon: '&#x1f4ca;',
                 prefix: 'status',
-                defaultTab: 'dashboard',
+                defaultTab: 'projects',
                 tabs: [
-                    { id: 'dashboard', label: 'Dashboard' }
+                    { id: 'projects', label: 'Projects' },
+                    { id: 'metrics', label: 'Metrics' },
+                    { id: 'tokens', label: 'Tokens' }
                 ],
                 onActivate: function() { statusLoad(); }
             },
@@ -2202,7 +2219,10 @@
 
                 // Trigger lazy-loads
                 if (projectId === 'status') {
-                    if (tabId === 'dashboard') statusLoad();
+                    if (!statusRef && firebaseReady) statusRef = db.ref('hub_status');
+                    if (tabId === 'projects') statusLoadProjects();
+                    if (tabId === 'metrics') statusLoadMetrics();
+                    if (tabId === 'tokens') statusLoadTokens();
                 }
                 if (projectId === 'thought-organizer') {
                     if (tabId === 'review') loadThoughts();
@@ -3298,14 +3318,33 @@
             health: { active: 5, deployed: 1, archived: 0 }
         };
 
+        const STATUS_SEED_TOKENS = {
+            claude: {
+                input_tokens: 0,
+                output_tokens: 0,
+                total_cost: 0,
+                limits: { daily_input: 700000, daily_output: 300000 },
+                last_updated: Date.now()
+            },
+            gemini: {
+                input_tokens: 0,
+                output_tokens: 0,
+                limits: { daily_input: 1050000, daily_output: 450000 },
+                last_updated: Date.now()
+            }
+        };
+
         function statusLoad() {
             if (!firebaseReady) return;
             if (!statusRef) {
                 statusRef = db.ref('hub_status');
             }
-            statusLoadProjects();
-            statusLoadMetrics();
-            statusLoadTokens();
+            // Load only the active tab's data (default: projects)
+            const activeTab = document.querySelector('#project-status .project-tab.active');
+            const tabId = activeTab ? activeTab.dataset.tab : 'projects';
+            if (tabId === 'projects') statusLoadProjects();
+            else if (tabId === 'metrics') statusLoadMetrics();
+            else if (tabId === 'tokens') statusLoadTokens();
         }
 
         // --- PROJECT TABLE ---
@@ -3423,11 +3462,17 @@
         async function statusLoadTokens() {
             try {
                 const snap = await statusRef.child('token_usage').once('value');
-                const data = snap.val();
+                let data = snap.val();
+                if (!data) {
+                    await statusRef.child('token_usage').set(STATUS_SEED_TOKENS);
+                    data = STATUS_SEED_TOKENS;
+                }
                 statusRenderTokenGauge('Claude', data?.claude, 'statusClaude');
                 statusRenderTokenGauge('Gemini', data?.gemini, 'statusGemini');
             } catch (e) {
                 console.error('Status: failed to load tokens', e);
+                statusRenderTokenGauge('Claude', STATUS_SEED_TOKENS.claude, 'statusClaude');
+                statusRenderTokenGauge('Gemini', STATUS_SEED_TOKENS.gemini, 'statusGemini');
             }
         }
 
