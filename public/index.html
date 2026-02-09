@@ -227,29 +227,133 @@
         .app-content.visible { display: block; }
 
         /* ==========================================
-           MAIN CONTENT LAYOUT
+           HUB LAYOUT — SIDEBAR + MAIN
            ========================================== */
-        .main-content {
-            padding: 20px;
+        .hub-layout {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            min-height: calc(100vh - 60px);
         }
 
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
+        .hub-sidebar {
+            background: var(--ag-card-bg);
+            border-right: 1px solid var(--ag-border);
+            padding: 20px 0;
+            display: flex;
+            flex-direction: column;
+            position: sticky;
+            top: 0;
+            height: calc(100vh - 60px);
+            overflow-y: auto;
         }
 
-        header {
-            text-align: center;
-            margin-bottom: 30px;
+        .sidebar-section-label {
+            padding: 0 20px 12px;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--pmo-grey);
+            font-weight: 600;
         }
 
-        header h1 {
-            font-size: 2rem;
-            margin-bottom: 10px;
+        .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 0 12px;
+            flex: 1;
+        }
+
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 12px;
+            color: var(--muted);
+            cursor: pointer;
+            font-family: 'Verdana', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.2s;
+            text-align: left;
+            width: 100%;
+        }
+
+        .sidebar-item:hover {
+            color: var(--text);
+            background: var(--ag-surface);
+            border-color: var(--ag-border);
+        }
+
+        .sidebar-item.active {
             color: var(--pmo-green);
+            background: rgba(124, 193, 112, 0.1);
+            border-color: rgba(124, 193, 112, 0.3);
         }
 
-        .subtitle { color: var(--muted); }
+        .sidebar-icon {
+            font-size: 1.2rem;
+            width: 24px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .sidebar-label {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sidebar-footer {
+            padding: 12px 20px;
+            border-top: 1px solid var(--ag-border);
+            margin-top: auto;
+        }
+
+        .sidebar-version {
+            font-size: 0.7rem;
+            color: var(--pmo-grey);
+        }
+
+        .sidebar-toggle {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 200;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--pmo-green);
+            color: white;
+            border: none;
+            font-size: 1.4rem;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(124, 193, 112, 0.4);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 6, 6, 0.7);
+            z-index: 499;
+        }
+
+        .sidebar-overlay.show { display: block; }
+
+        .hub-main {
+            padding: 20px 30px;
+            overflow-y: auto;
+        }
 
         .storage-notice {
             background: rgba(124, 193, 112, 0.1);
@@ -263,17 +367,19 @@
         }
 
         /* ==========================================
-           TABS
+           PROJECT PANELS + TABS
            ========================================== */
-        .tabs {
+        .project-panel { display: none; }
+        .project-panel.active { display: block; }
+
+        .project-tabs {
             display: flex;
             gap: 10px;
             margin-bottom: 20px;
-            border-bottom: none;
             padding-bottom: 10px;
         }
 
-        .tab {
+        .project-tab {
             padding: 10px 20px;
             background: var(--ag-surface);
             border: 1px solid var(--ag-border);
@@ -286,19 +392,19 @@
             transition: all 0.2s;
         }
 
-        .tab:hover {
+        .project-tab:hover {
             color: var(--text);
             border-color: var(--pmo-green);
         }
 
-        .tab.active {
+        .project-tab.active {
             background: var(--pmo-green);
             color: white;
             border-color: var(--pmo-green);
         }
 
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
+        .project-tab-content { display: none; }
+        .project-tab-content.active { display: block; }
 
         /* ==========================================
            VOICE CAPTURE
@@ -1004,6 +1110,39 @@
            RESPONSIVE
            ========================================== */
         @media (max-width: 768px) {
+            .hub-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .hub-sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 280px;
+                height: 100vh;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                z-index: 500;
+                padding-top: 70px;
+            }
+
+            .hub-sidebar.open {
+                transform: translateX(0);
+            }
+
+            .sidebar-toggle {
+                display: flex;
+            }
+
+            .hub-main { padding: 15px; }
+
+            .project-tabs { flex-wrap: wrap; }
+
+            .project-tab {
+                padding: 8px 15px;
+                font-size: 0.9rem;
+            }
+
             .pw-compare-grid { grid-template-columns: 1fr; }
             .pw-score-grid { grid-template-columns: repeat(11, 1fr); gap: 3px; }
             .pw-score-btn { padding: 8px 0; font-size: 0.75rem; }
@@ -1014,15 +1153,6 @@
                 flex-direction: column;
                 gap: 10px;
                 padding: 10px 15px;
-            }
-
-            .main-content { padding: 15px; }
-
-            .tabs { flex-wrap: wrap; }
-
-            .tab {
-                padding: 8px 15px;
-                font-size: 0.9rem;
             }
         }
     </style>
@@ -1059,19 +1189,41 @@
             </div>
         </div>
 
-        <!-- Content Area -->
-        <div class="main-content">
-            <div class="container">
-                <!-- Tabs -->
-                <div class="tabs">
-                    <button class="tab" data-tab="capture">+ Capture</button>
-                    <button class="tab active" data-tab="review">Review & Edit</button>
-                    <button class="tab" data-tab="visualize">Visualize</button>
-                    <button class="tab" data-tab="pairwise">Pairwise</button>
+        <!-- Hub Layout: Sidebar + Main -->
+        <div class="hub-layout">
+            <!-- Left Sidebar -->
+            <nav class="hub-sidebar" id="hubSidebar">
+                <div class="sidebar-section-label">Projects</div>
+                <div class="sidebar-nav" id="sidebarNav">
+                    <button class="sidebar-item active" data-project="thought-organizer">
+                        <span class="sidebar-icon">&#x1f4a1;</span>
+                        <span class="sidebar-label">Thought Organizer</span>
+                    </button>
+                    <button class="sidebar-item" data-project="pairwise">
+                        <span class="sidebar-icon">&#x2696;</span>
+                        <span class="sidebar-label">Pairwise Analysis</span>
+                    </button>
                 </div>
+                <div class="sidebar-footer">
+                    <span class="sidebar-version">v2.0</span>
+                </div>
+            </nav>
+            <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+            <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">&#9776;</button>
 
-                <!-- CAPTURE TAB -->
-                <div id="capture" class="tab-content">
+            <!-- Main Content Area -->
+            <main class="hub-main" id="hubMain">
+
+                <!-- PROJECT: Thought Organizer -->
+                <div class="project-panel active" id="project-thought-organizer">
+                    <div class="project-tabs" data-project="thought-organizer">
+                        <button class="project-tab" data-tab="capture">+ Capture</button>
+                        <button class="project-tab active" data-tab="review">Review & Edit</button>
+                        <button class="project-tab" data-tab="visualize">Visualize</button>
+                    </div>
+
+                    <!-- CAPTURE -->
+                    <div id="to-capture" class="project-tab-content">
                     <section class="voice-section">
                         <button id="voiceBtn" title="Click to speak">
                             <svg viewBox="0 0 24 24">
@@ -1220,8 +1372,8 @@
                     </div>
                 </div>
 
-                <!-- REVIEW TAB -->
-                <div id="review" class="tab-content active">
+                    <!-- REVIEW & EDIT -->
+                    <div id="to-review" class="project-tab-content active">
                     <div class="stats-grid" id="statsGrid">
                         <!-- Populated by JS -->
                     </div>
@@ -1275,8 +1427,8 @@
                     </table>
                 </div>
 
-                <!-- VISUALIZE TAB -->
-                <div id="visualize" class="tab-content">
+                    <!-- VISUALIZE -->
+                    <div id="to-visualize" class="project-tab-content">
                     <div class="diagram-tabs">
                         <button class="diagram-tab active" data-diagram="mindmap">Mind Map</button>
                         <button class="diagram-tab" data-diagram="timeline">Timeline</button>
@@ -1335,29 +1487,38 @@
                     </div>
                 </div>
 
-                <!-- PAIRWISE ANALYSIS TAB -->
-                <div id="pairwise" class="tab-content">
-                    <div class="pw-container">
-                        <div class="pw-header">
-                            <h2>Pairwise Analysis</h2>
-                            <div class="pw-saved-controls">
-                                <select id="pwSavedSelect" class="pw-saved-select">
-                                    <option value="">-- Saved Analyses --</option>
-                                </select>
-                                <button class="btn btn-secondary btn-small" onclick="pwLoadSaved()">Load</button>
-                                <button class="btn btn-danger btn-small" onclick="pwDeleteSaved()">Delete</button>
-                            </div>
-                        </div>
-                        <div id="pwApp"></div>
+                </div> <!-- /project-thought-organizer -->
+
+                <!-- PROJECT: Pairwise Analysis -->
+                <div class="project-panel" id="project-pairwise">
+                    <div class="project-tabs" data-project="pairwise">
+                        <button class="project-tab active" data-tab="analysis">Analysis</button>
                     </div>
-                </div>
+
+                    <!-- ANALYSIS -->
+                    <div id="pw-analysis" class="project-tab-content active">
+                        <div class="pw-container">
+                            <div class="pw-header">
+                                <h2>Pairwise Analysis</h2>
+                                <div class="pw-saved-controls">
+                                    <select id="pwSavedSelect" class="pw-saved-select">
+                                        <option value="">-- Saved Analyses --</option>
+                                    </select>
+                                    <button class="btn btn-secondary btn-small" onclick="pwLoadSaved()">Load</button>
+                                    <button class="btn btn-danger btn-small" onclick="pwDeleteSaved()">Delete</button>
+                                </div>
+                            </div>
+                            <div id="pwApp"></div>
+                        </div>
+                    </div>
+                </div> <!-- /project-pairwise -->
 
                 <footer>
                     <p>3PMO Hub | Personal Productivity Hub</p>
                     <p>Cloud synced via Firebase</p>
                 </footer>
-            </div>
-        </div>
+            </main>
+        </div> <!-- /hub-layout -->
     </div>
 
     <!-- Edit Modal -->
@@ -1558,7 +1719,7 @@
                 document.getElementById('appContent').classList.add('visible');
                 document.getElementById('userEmail').textContent = user.email;
                 initDatabase();
-                loadThoughts();
+                HubNav.init();
             } else {
                 document.getElementById('authOverlay').classList.remove('hidden');
                 document.getElementById('appContent').classList.remove('visible');
@@ -1610,6 +1771,125 @@
                 console.error('Database init error:', e);
                 firebaseReady = false;
             }
+        }
+
+        // ==========================================
+        // PROJECT REGISTRY
+        // ==========================================
+        // Each project in the hub is registered here.
+        // To add a new project:
+        //   1. Add an entry to HUB_PROJECTS
+        //   2. Add its HTML panel (class="project-panel" id="project-{id}")
+        //   3. Add its tab content panels (class="project-tab-content" id="{prefix}-{tabId}")
+        //   4. Add its JS logic (state, functions)
+        //   5. Add any project-specific CSS (prefixed with project slug)
+        const HUB_PROJECTS = [
+            {
+                id: 'thought-organizer',
+                name: 'Thought Organizer',
+                icon: '&#x1f4a1;',
+                prefix: 'to',
+                defaultTab: 'review',
+                tabs: [
+                    { id: 'capture', label: '+ Capture' },
+                    { id: 'review', label: 'Review & Edit' },
+                    { id: 'visualize', label: 'Visualize' }
+                ],
+                onActivate: function() { loadThoughts(); }
+            },
+            {
+                id: 'pairwise',
+                name: 'Pairwise Analysis',
+                icon: '&#x2696;',
+                prefix: 'pw',
+                defaultTab: 'analysis',
+                tabs: [
+                    { id: 'analysis', label: 'Analysis' }
+                ],
+                onActivate: function() { pwRender(); pwLoadAnalyses(); }
+            }
+        ];
+
+        // ==========================================
+        // HUB NAVIGATION CONTROLLER
+        // ==========================================
+        const HubNav = {
+            activeProjectId: null,
+
+            init: function() {
+                // Attach sidebar click handlers
+                document.querySelectorAll('.sidebar-item').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        HubNav.switchProject(btn.dataset.project);
+                        if (window.innerWidth <= 768) toggleSidebar();
+                    });
+                });
+
+                // Attach project-level tab handlers
+                document.querySelectorAll('.project-tabs').forEach(tabBar => {
+                    tabBar.querySelectorAll('.project-tab').forEach(tab => {
+                        tab.addEventListener('click', () => {
+                            HubNav.switchTab(tabBar.dataset.project, tab.dataset.tab);
+                        });
+                    });
+                });
+
+                // Activate default project
+                this.switchProject(HUB_PROJECTS[0].id);
+            },
+
+            switchProject: function(projectId) {
+                const project = HUB_PROJECTS.find(p => p.id === projectId);
+                if (!project) return;
+
+                // Update sidebar active state
+                document.querySelectorAll('.sidebar-item').forEach(item => {
+                    item.classList.toggle('active', item.dataset.project === projectId);
+                });
+
+                // Show correct project panel
+                document.querySelectorAll('.project-panel').forEach(panel => {
+                    panel.classList.toggle('active', panel.id === 'project-' + projectId);
+                });
+
+                this.activeProjectId = projectId;
+
+                // Call onActivate
+                if (typeof project.onActivate === 'function') project.onActivate();
+            },
+
+            switchTab: function(projectId, tabId) {
+                const project = HUB_PROJECTS.find(p => p.id === projectId);
+                if (!project) return;
+
+                const panel = document.getElementById('project-' + projectId);
+                if (!panel) return;
+
+                // Update tab button active state
+                panel.querySelectorAll('.project-tab').forEach(t => {
+                    t.classList.toggle('active', t.dataset.tab === tabId);
+                });
+
+                // Update tab content active state
+                const prefix = project.prefix;
+                panel.querySelectorAll('.project-tab-content').forEach(c => {
+                    c.classList.toggle('active', c.id === prefix + '-' + tabId);
+                });
+
+                // Trigger lazy-loads
+                if (projectId === 'thought-organizer') {
+                    if (tabId === 'review') loadThoughts();
+                    if (tabId === 'visualize') loadVisualizations();
+                }
+                if (projectId === 'pairwise') {
+                    if (tabId === 'analysis') { pwRender(); pwLoadAnalyses(); }
+                }
+            }
+        };
+
+        function toggleSidebar() {
+            document.getElementById('hubSidebar').classList.toggle('open');
+            document.getElementById('sidebarOverlay').classList.toggle('show');
         }
 
         // ==========================================
@@ -1829,21 +2109,7 @@
             return count;
         }
 
-        // ==========================================
-        // TAB SWITCHING
-        // ==========================================
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                tab.classList.add('active');
-                document.getElementById(tab.dataset.tab).classList.add('active');
-
-                if (tab.dataset.tab === 'review') loadThoughts();
-                if (tab.dataset.tab === 'visualize') loadVisualizations();
-                if (tab.dataset.tab === 'pairwise') { pwRender(); pwLoadAnalyses(); }
-            });
-        });
+        // Tab switching is now handled by HubNav (see PROJECT REGISTRY section)
 
         // ==========================================
         // SPEECH RECOGNITION
@@ -2690,6 +2956,8 @@
         window.closeImportModal = closeImportModal;
         window.toggleCode = toggleCode;
         window.copyDiagramCode = copyDiagramCode;
+        window.toggleSidebar = toggleSidebar;
+        window.HubNav = HubNav;
 
         // ==========================================
         // PAIRWISE ANALYSIS MODULE
