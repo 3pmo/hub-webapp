@@ -487,6 +487,56 @@
         .status-badge.deployed { background: rgba(196, 255, 97, 0.15); color: var(--ag-lime); }
         .status-badge.archived { background: rgba(127, 133, 137, 0.15); color: var(--pmo-grey); }
 
+        .status-legend {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .status-legend h4 {
+            color: var(--muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 0 0 12px 0;
+        }
+
+        .status-legend dl {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 6px 16px;
+            align-items: baseline;
+            margin: 0;
+        }
+
+        .status-legend dt {
+            color: var(--text);
+            font-size: 0.8rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .status-legend dd {
+            color: var(--muted);
+            font-size: 0.78rem;
+            line-height: 1.4;
+            margin: 0;
+        }
+
+        .status-drive-link {
+            color: var(--pmo-green);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+
+        .status-drive-link:hover {
+            opacity: 1;
+            text-decoration: underline;
+        }
+
         .status-chart-container {
             position: relative;
             height: 280px;
@@ -1449,12 +1499,34 @@
                                         <th>Status</th>
                                         <th>Parent</th>
                                         <th>Last Active</th>
+                                        <th>Drive</th>
                                     </tr>
                                 </thead>
                                 <tbody id="statusProjectsBody">
                                     <!-- Populated by JS -->
                                 </tbody>
                             </table>
+                            <div class="status-legend">
+                                <h4>Field guide</h4>
+                                <dl>
+                                    <dt><span class="status-type-badge standalone">Standalone</span></dt>
+                                    <dd>Independent project with its own codebase and deployment (e.g. UAE Director, M4P Model)</dd>
+                                    <dt><span class="status-type-badge hub-tab">Tab</span></dt>
+                                    <dd>Runs inside hub-webapp as a tab — shares the parent's code, hosting, and Firebase project</dd>
+                                    <dt><span class="status-badge active">Active</span></dt>
+                                    <dd>Currently being worked on — code changes expected</dd>
+                                    <dt><span class="status-badge deployed">Deployed</span></dt>
+                                    <dd>Live in production and stable — maintenance only, no active feature work</dd>
+                                    <dt><span class="status-badge archived">Archived</span></dt>
+                                    <dd>Work complete or paused indefinitely — moved to the archive</dd>
+                                    <dt>Last Active</dt>
+                                    <dd>Date of the most recent AI work session on this project</dd>
+                                    <dt>Parent</dt>
+                                    <dd>For Tab projects, the parent project whose codebase and deployment they share</dd>
+                                    <dt>Drive</dt>
+                                    <dd>Link to the project's documentation folder on Google Drive (briefs, research, plans, artifacts)</dd>
+                                </dl>
+                            </div>
                         </div>
                     </div>
 
@@ -1467,7 +1539,7 @@
                             <div class="status-chart-container status-chart-wide">
                                 <canvas id="statusActivityChart"></canvas>
                             </div>
-                            <p class="status-chart-description">Tracks daily project activity across five dimensions: AI work sessions, git commits, deployments, active project count, and the carry-forward rate (percentage of items deferred to the next session). Data covers all hub-webapp projects.</p>
+                            <p class="status-chart-description">Tracks daily project activity across five dimensions: AI work sessions, git commits, deployments, active project count, and carry-forward items (tasks deferred to the next session). All values are absolute counts. Data covers all hub-webapp projects.</p>
                         </div>
                     </div>
 
@@ -3295,20 +3367,20 @@
 
         // Seed data matching current project registry
         const STATUS_SEED_PROJECTS = {
-            'uae-director': { name: 'UAE Director', type: 'standalone', status: 'Active', parent: null, lastActive: '2026-02-08' },
-            'hub-webapp': { name: 'Hub Webapp', type: 'standalone', status: 'Deployed', parent: null, lastActive: '2026-02-09' },
-            'thought': { name: 'Thought Organizer', type: 'hub-tab', status: 'Active', parent: 'hub-webapp', lastActive: '2026-02-09' },
-            'pairwise': { name: 'Pairwise Analysis', type: 'hub-tab', status: 'Active', parent: 'hub-webapp', lastActive: '2026-02-08' },
-            'status': { name: 'Status Dashboard', type: 'hub-tab', status: 'Active', parent: 'hub-webapp', lastActive: '2026-02-09' },
-            'm4p-model': { name: 'M4P Model', type: 'standalone', status: 'Active', parent: null, lastActive: '2026-02-08' }
+            'uae-director': { name: 'UAE Director', type: 'standalone', status: 'Active', parent: null, lastActive: '2026-02-08', drive: 'F:\\My Drive\\AI\\Projects\\uae-director' },
+            'hub-webapp': { name: 'Hub Webapp', type: 'standalone', status: 'Deployed', parent: null, lastActive: '2026-02-10', drive: 'F:\\My Drive\\AI\\Projects\\hub-webapp' },
+            'thought': { name: 'Thought Organizer', type: 'hub-tab', status: 'Active', parent: 'hub-webapp', lastActive: '2026-02-09', drive: 'F:\\My Drive\\AI\\Projects\\thought' },
+            'pairwise': { name: 'Pairwise Analysis', type: 'hub-tab', status: 'Active', parent: 'hub-webapp', lastActive: '2026-02-08', drive: 'F:\\My Drive\\AI\\Projects\\pairwise' },
+            'status': { name: 'Status Dashboard', type: 'hub-tab', status: 'Active', parent: 'hub-webapp', lastActive: '2026-02-10', drive: 'F:\\My Drive\\AI\\Projects\\status' },
+            'm4p-model': { name: 'M4P Model', type: 'standalone', status: 'Active', parent: null, lastActive: '2026-02-08', drive: 'F:\\My Drive\\AI\\Projects\\m4p-model' }
         };
 
         const STATUS_SEED_METRICS = {
             activity: {
                 '2026-02-06': { sessions: 1, commits: 3, deploys: 1, activeProjects: 2, carryForward: 0 },
                 '2026-02-07': { sessions: 0, commits: 0, deploys: 0, activeProjects: 2, carryForward: 0 },
-                '2026-02-08': { sessions: 4, commits: 7, deploys: 3, activeProjects: 5, carryForward: 25 },
-                '2026-02-09': { sessions: 3, commits: 4, deploys: 2, activeProjects: 6, carryForward: 40 }
+                '2026-02-08': { sessions: 4, commits: 7, deploys: 3, activeProjects: 5, carryForward: 3 },
+                '2026-02-09': { sessions: 3, commits: 4, deploys: 2, activeProjects: 6, carryForward: 5 }
             }
         };
 
@@ -3360,15 +3432,18 @@
         function statusRenderProjects(data) {
             const tbody = document.getElementById('statusProjectsBody');
             if (!tbody) return;
+            const esc = s => s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
             const rows = Object.entries(data).map(([id, p]) => {
                 const typeClass = p.type === 'hub-tab' ? 'hub-tab' : 'standalone';
                 const statusClass = (p.status || 'Active').toLowerCase();
+                const drivePath = p.drive || ('F:\\My Drive\\AI\\Projects\\' + id);
                 return `<tr>
-                    <td><strong>${p.name}</strong></td>
+                    <td><strong>${esc(p.name)}</strong></td>
                     <td><span class="status-type-badge ${typeClass}">${p.type === 'hub-tab' ? 'Tab' : 'Standalone'}</span></td>
-                    <td><span class="status-badge ${statusClass}">${p.status || 'Active'}</span></td>
-                    <td>${p.parent || '—'}</td>
-                    <td>${p.lastActive || '—'}</td>
+                    <td><span class="status-badge ${statusClass}">${esc(p.status) || 'Active'}</span></td>
+                    <td>${esc(p.parent) || '—'}</td>
+                    <td>${esc(p.lastActive) || '—'}</td>
+                    <td><a href="file:///${drivePath.replace(/\\/g, '/')}" class="status-drive-link" title="${esc(drivePath)}">Open</a></td>
                 </tr>`;
             }).join('');
             tbody.innerHTML = rows;
@@ -3439,15 +3514,14 @@
                     fill: false
                 },
                 {
-                    label: 'Carry-forward %',
+                    label: 'Carry-forward',
                     data: dates.map(d => data.activity[d].carryForward || 0),
                     borderColor: '#FF9E1B',
                     backgroundColor: 'rgba(255, 158, 27, 0.1)',
                     pointBackgroundColor: '#FF9E1B',
                     borderDash: [2, 2],
                     tension: 0.3,
-                    fill: false,
-                    yAxisID: 'yPct'
+                    fill: false
                 }
             ];
 
@@ -3477,19 +3551,9 @@
                             grid: { color: 'rgba(255,255,255,0.04)' }
                         },
                         y: {
-                            position: 'left',
                             beginAtZero: true,
                             ticks: { color: '#94a3b8', stepSize: 1 },
-                            grid: { color: 'rgba(255,255,255,0.04)' },
-                            title: { display: true, text: 'Count', color: '#94a3b8', font: { size: 11 } }
-                        },
-                        yPct: {
-                            position: 'right',
-                            beginAtZero: true,
-                            max: 100,
-                            ticks: { color: '#FF9E1B', callback: v => v + '%' },
-                            grid: { drawOnChartArea: false },
-                            title: { display: true, text: 'Carry-forward', color: '#FF9E1B', font: { size: 11 } }
+                            grid: { color: 'rgba(255,255,255,0.04)' }
                         }
                     }
                 }
@@ -3498,24 +3562,26 @@
 
         // --- TOKEN USAGE ---
         async function statusLoadTokens() {
-            const renderSeed = () => {
-                statusRenderTokenGauge('Claude', STATUS_SEED_TOKENS.claude, 'statusClaude');
-                statusRenderTokenGauge('Gemini', STATUS_SEED_TOKENS.gemini, 'statusGemini');
-            };
-            if (!statusRef) { renderSeed(); return; }
+            // Always render seed data immediately (synchronous, guaranteed)
+            statusRenderTokenGauge('Claude', STATUS_SEED_TOKENS.claude, 'statusClaude');
+            statusRenderTokenGauge('Gemini', STATUS_SEED_TOKENS.gemini, 'statusGemini');
+
+            // Then try Firebase for real data (async upgrade)
+            if (!statusRef) return;
             try {
                 const snap = await statusRef.child('token_usage').once('value');
-                let data = snap.val();
-                if (!data || !data.claude?.limits || !data.gemini?.limits) {
-                    // No data or malformed — overwrite with seed
-                    await statusRef.child('token_usage').set(STATUS_SEED_TOKENS).catch(() => {});
-                    data = STATUS_SEED_TOKENS;
+                const data = snap.val();
+                if (data) {
+                    if (data.claude && data.claude.limits) {
+                        statusRenderTokenGauge('Claude', data.claude, 'statusClaude');
+                    }
+                    if (data.gemini && data.gemini.limits) {
+                        statusRenderTokenGauge('Gemini', data.gemini, 'statusGemini');
+                    }
                 }
-                statusRenderTokenGauge('Claude', data.claude || STATUS_SEED_TOKENS.claude, 'statusClaude');
-                statusRenderTokenGauge('Gemini', data.gemini || STATUS_SEED_TOKENS.gemini, 'statusGemini');
             } catch (e) {
-                console.error('Status: failed to load tokens', e);
-                renderSeed();
+                // Seed already rendered — nothing to do
+                console.error('Status: token Firebase read failed', e);
             }
         }
 
