@@ -2,7 +2,7 @@
   "name": "hub-webapp-functions",
   "description": "Cloud Functions for hub-webapp Status dashboard",
   "engines": {
-    "node": "18"
+    "node": "20"
   },
   "main": "index.js",
   "dependencies": {
