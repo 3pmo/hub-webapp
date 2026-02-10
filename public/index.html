@@ -1571,7 +1571,9 @@
                                         <span>Output: 0</span>
                                         <span>Cost: $0.00</span>
                                     </div>
-                                    <div class="status-gauge-updated" id="statusClaudeUpdated">No usage data yet — Cloud Function not deployed</div>
+                                    <div class="status-gauge-detail" id="statusClaudeExtra" style="margin-top: 4px; font-size: 0.7rem; opacity: 0.7;">
+                                    </div>
+                                    <div class="status-gauge-updated" id="statusClaudeUpdated">Click Refresh to load usage data</div>
                                 </div>
                             </div>
                             <div class="status-card status-token-card">
@@ -3399,9 +3401,14 @@
             claude: {
                 input_tokens: 0,
                 output_tokens: 0,
-                total_cost: 0,
+                estimated_cost_cents: 0,
+                sessions: 0,
+                lines_added: 0,
+                lines_removed: 0,
+                commits: 0,
+                date: null,
                 limits: { daily_input: 700000, daily_output: 300000 },
-                last_updated: Date.now()
+                last_updated: null
             },
             gemini: {
                 input_tokens: 0,
@@ -3603,6 +3610,7 @@
                 const badge = document.getElementById(idPrefix + 'Badge');
                 const detail = document.getElementById(idPrefix + 'Detail');
                 const updated = document.getElementById(idPrefix + 'Updated');
+                const extra = document.getElementById(idPrefix + 'Extra');
                 if (!fill || !value || !badge) { console.warn('Token gauge elements not found:', idPrefix); return; }
 
                 if (!data || !data.limits) {
@@ -3629,10 +3637,32 @@
 
                 const fmt = n => { n = Number(n) || 0; return n >= 1000000 ? (n / 1000000).toFixed(1) + 'M' : n >= 1000 ? (n / 1000).toFixed(0) + 'K' : String(n); };
                 let detailHtml = '<span>Input: ' + fmt(data.input_tokens) + '</span><span>Output: ' + fmt(data.output_tokens) + '</span>';
-                if (data.total_cost != null && !isNaN(data.total_cost)) {
+
+                // Cost: handle both cents (new API) and dollar (old format)
+                if (data.estimated_cost_cents != null && Number(data.estimated_cost_cents) > 0) {
+                    detailHtml += '<span>Cost: $' + (Number(data.estimated_cost_cents) / 100).toFixed(2) + '</span>';
+                } else if (data.total_cost != null && !isNaN(data.total_cost)) {
                     detailHtml += '<span>Cost: $' + Number(data.total_cost).toFixed(2) + '</span>';
                 }
                 if (detail) detail.innerHTML = detailHtml;
+
+                // Extra metrics row (Claude Code Analytics: sessions, LOC, commits)
+                if (extra && provider === 'Claude') {
+                    let extraHtml = '';
+                    if (data.sessions != null && Number(data.sessions) > 0) {
+                        extraHtml += '<span>Sessions: ' + data.sessions + '</span>';
+                    }
+                    if ((data.lines_added || 0) > 0 || (data.lines_removed || 0) > 0) {
+                        extraHtml += '<span>LOC: +' + (data.lines_added || 0) + ' / -' + (data.lines_removed || 0) + '</span>';
+                    }
+                    if ((data.commits || 0) > 0) {
+                        extraHtml += '<span>Commits: ' + data.commits + '</span>';
+                    }
+                    if (data.date) {
+                        extraHtml += '<span>Date: ' + data.date + '</span>';
+                    }
+                    extra.innerHTML = extraHtml;
+                }
 
                 if (updated && data.last_updated) {
                     updated.textContent = 'Last updated: ' + new Date(data.last_updated).toLocaleString();
