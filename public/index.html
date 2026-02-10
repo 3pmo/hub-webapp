@@ -546,14 +546,6 @@
             height: 340px;
         }
 
-        .status-chart-description {
-            color: var(--muted);
-            font-size: 0.78rem;
-            line-height: 1.5;
-            margin: 12px 0 0 0;
-            padding-top: 12px;
-            border-top: 1px solid rgba(255, 255, 255, 0.04);
-        }
 
         .status-tokens-grid {
             display: grid;
@@ -1539,7 +1531,21 @@
                             <div class="status-chart-container status-chart-wide">
                                 <canvas id="statusActivityChart"></canvas>
                             </div>
-                            <p class="status-chart-description">Tracks daily project activity across five dimensions: AI work sessions, git commits, deployments, active project count, and carry-forward items (tasks deferred to the next session). All values are absolute counts. Data covers all hub-webapp projects.</p>
+                            <div class="status-legend">
+                                <h4>Metric guide</h4>
+                                <dl>
+                                    <dt><span style="color:#7CC170">&#9632;</span> Sessions</dt>
+                                    <dd>Number of AI work sessions conducted on any project that day</dd>
+                                    <dt><span style="color:#c4ff61">&#9632;</span> Commits</dt>
+                                    <dd>Git commits pushed across all project repositories</dd>
+                                    <dt><span style="color:#60a5fa">&#9632;</span> Deploys</dt>
+                                    <dd>Production deployments to Firebase Hosting or other platforms</dd>
+                                    <dt><span style="color:#7F8589">&#9632;</span> Active Projects</dt>
+                                    <dd>Total projects with at least one session that day or recently active (dashed line)</dd>
+                                    <dt><span style="color:#FF9E1B">&#9632;</span> Carry-forward</dt>
+                                    <dd>Tasks or blockers deferred to the next session — lower is better (dashed line)</dd>
+                                </dl>
+                            </div>
                         </div>
                     </div>
 
@@ -1556,15 +1562,15 @@
                                         <div class="status-gauge-fill" id="statusClaudeFill" style="width: 0%"></div>
                                     </div>
                                     <div class="status-gauge-labels">
-                                        <span class="status-gauge-value" id="statusClaudeValue">—</span>
-                                        <span class="status-gauge-badge" id="statusClaudeBadge">No data</span>
+                                        <span class="status-gauge-value" id="statusClaudeValue">0.0%</span>
+                                        <span class="status-gauge-badge ok" id="statusClaudeBadge">OK</span>
                                     </div>
                                     <div class="status-gauge-detail" id="statusClaudeDetail">
-                                        <span>Input: —</span>
-                                        <span>Output: —</span>
-                                        <span>Cost: —</span>
+                                        <span>Input: 0</span>
+                                        <span>Output: 0</span>
+                                        <span>Cost: $0.00</span>
                                     </div>
-                                    <div class="status-gauge-updated" id="statusClaudeUpdated">Last updated: —</div>
+                                    <div class="status-gauge-updated" id="statusClaudeUpdated">No usage data yet — Cloud Function not deployed</div>
                                 </div>
                             </div>
                             <div class="status-card status-token-card">
@@ -1577,14 +1583,14 @@
                                         <div class="status-gauge-fill" id="statusGeminiFill" style="width: 0%"></div>
                                     </div>
                                     <div class="status-gauge-labels">
-                                        <span class="status-gauge-value" id="statusGeminiValue">—</span>
-                                        <span class="status-gauge-badge" id="statusGeminiBadge">No data</span>
+                                        <span class="status-gauge-value" id="statusGeminiValue">0.0%</span>
+                                        <span class="status-gauge-badge ok" id="statusGeminiBadge">OK</span>
                                     </div>
                                     <div class="status-gauge-detail" id="statusGeminiDetail">
-                                        <span>Input: —</span>
-                                        <span>Output: —</span>
+                                        <span>Input: 0</span>
+                                        <span>Output: 0</span>
                                     </div>
-                                    <div class="status-gauge-updated" id="statusGeminiUpdated">Last updated: —</div>
+                                    <div class="status-gauge-updated" id="statusGeminiUpdated">No usage data yet — use Update button to enter manually</div>
                                 </div>
                                 <!-- Gemini manual entry form (hidden by default) -->
                                 <div id="statusGeminiForm" class="status-gemini-form" style="display: none;">
@@ -2287,10 +2293,14 @@
 
                 // Trigger lazy-loads
                 if (projectId === 'status') {
-                    if (!statusRef && firebaseReady && db) statusRef = db.ref('hub_status');
-                    if (tabId === 'projects') statusLoadProjects();
-                    if (tabId === 'metrics') statusLoadMetrics();
-                    if (tabId === 'tokens') statusLoadTokens();
+                    try {
+                        if (!statusRef && firebaseReady && db) statusRef = db.ref('hub_status');
+                    } catch (e) { console.error('Status: ref init failed', e); }
+                    try {
+                        if (tabId === 'projects') statusLoadProjects();
+                        if (tabId === 'metrics') statusLoadMetrics();
+                        if (tabId === 'tokens') statusLoadTokens();
+                    } catch (e) { console.error('Status: tab load failed', e); }
                 }
                 if (projectId === 'thought-organizer') {
                     if (tabId === 'review') loadThoughts();
@@ -3586,43 +3596,48 @@
         }
 
         function statusRenderTokenGauge(provider, data, idPrefix) {
-            const fill = document.getElementById(idPrefix + 'Fill');
-            const value = document.getElementById(idPrefix + 'Value');
-            const badge = document.getElementById(idPrefix + 'Badge');
-            const detail = document.getElementById(idPrefix + 'Detail');
-            const updated = document.getElementById(idPrefix + 'Updated');
-            if (!fill || !value || !badge) return;
+            try {
+                const fill = document.getElementById(idPrefix + 'Fill');
+                const value = document.getElementById(idPrefix + 'Value');
+                const badge = document.getElementById(idPrefix + 'Badge');
+                const detail = document.getElementById(idPrefix + 'Detail');
+                const updated = document.getElementById(idPrefix + 'Updated');
+                if (!fill || !value || !badge) { console.warn('Token gauge elements not found:', idPrefix); return; }
 
-            if (!data || !data.limits) {
-                value.textContent = '—';
-                badge.textContent = 'No data';
-                badge.className = 'status-gauge-badge no-data';
-                fill.style.width = '0%';
-                return;
-            }
+                if (!data || !data.limits) {
+                    value.textContent = '0.0%';
+                    badge.textContent = 'OK';
+                    badge.className = 'status-gauge-badge ok';
+                    fill.style.width = '0%';
+                    if (detail) detail.innerHTML = '<span>Input: 0</span><span>Output: 0</span>';
+                    return;
+                }
 
-            const totalUsed = (data.input_tokens || 0) + (data.output_tokens || 0);
-            const totalLimit = (data.limits.daily_input || 0) + (data.limits.daily_output || 0);
-            const pct = totalLimit > 0 ? Math.min((totalUsed / totalLimit) * 100, 100) : 0;
+                const totalUsed = (Number(data.input_tokens) || 0) + (Number(data.output_tokens) || 0);
+                const totalLimit = (Number(data.limits.daily_input) || 0) + (Number(data.limits.daily_output) || 0);
+                const pct = totalLimit > 0 ? Math.min((totalUsed / totalLimit) * 100, 100) : 0;
 
-            fill.style.width = pct.toFixed(1) + '%';
-            fill.className = 'status-gauge-fill' + (pct > 80 ? ' critical' : pct > 60 ? ' warning' : '');
+                fill.style.width = pct.toFixed(1) + '%';
+                fill.className = 'status-gauge-fill' + (pct > 80 ? ' critical' : pct > 60 ? ' warning' : '');
 
-            value.textContent = pct.toFixed(1) + '%';
+                value.textContent = pct.toFixed(1) + '%';
 
-            const riskLevel = pct > 80 ? 'Critical' : pct > 60 ? 'Warning' : 'OK';
-            badge.textContent = riskLevel;
-            badge.className = 'status-gauge-badge ' + riskLevel.toLowerCase();
+                const riskLevel = pct > 80 ? 'Critical' : pct > 60 ? 'Warning' : 'OK';
+                badge.textContent = riskLevel;
+                badge.className = 'status-gauge-badge ' + riskLevel.toLowerCase();
 
-            const fmt = n => n >= 1000000 ? (n / 1000000).toFixed(1) + 'M' : n >= 1000 ? (n / 1000).toFixed(0) + 'K' : n;
-            let detailHtml = `<span>Input: ${fmt(data.input_tokens || 0)}</span><span>Output: ${fmt(data.output_tokens || 0)}</span>`;
-            if (data.total_cost !== undefined) {
-                detailHtml += `<span>Cost: $${data.total_cost.toFixed(2)}</span>`;
-            }
-            detail.innerHTML = detailHtml;
+                const fmt = n => { n = Number(n) || 0; return n >= 1000000 ? (n / 1000000).toFixed(1) + 'M' : n >= 1000 ? (n / 1000).toFixed(0) + 'K' : String(n); };
+                let detailHtml = '<span>Input: ' + fmt(data.input_tokens) + '</span><span>Output: ' + fmt(data.output_tokens) + '</span>';
+                if (data.total_cost != null && !isNaN(data.total_cost)) {
+                    detailHtml += '<span>Cost: $' + Number(data.total_cost).toFixed(2) + '</span>';
+                }
+                if (detail) detail.innerHTML = detailHtml;
 
-            if (data.last_updated) {
-                updated.textContent = 'Last updated: ' + new Date(data.last_updated).toLocaleString();
+                if (updated && data.last_updated) {
+                    updated.textContent = 'Last updated: ' + new Date(data.last_updated).toLocaleString();
+                }
+            } catch (e) {
+                console.error('Token gauge render error (' + provider + '):', e);
             }
         }
 
@@ -3669,6 +3684,7 @@
         window.toggleSidebar = toggleSidebar;
         window.HubNav = HubNav;
         window.statusLoad = statusLoad;
+        window.statusLoadTokens = statusLoadTokens;
         window.statusRefreshClaude = statusRefreshClaude;
         window.statusShowGeminiForm = statusShowGeminiForm;
         window.statusHideGeminiForm = statusHideGeminiForm;
