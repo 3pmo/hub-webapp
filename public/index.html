@@ -3380,8 +3380,9 @@
             try {
                 const snap = await statusRef.child('metrics').once('value');
                 let data = snap.val();
-                if (!data) {
-                    await statusRef.child('metrics').set(STATUS_SEED_METRICS);
+                if (!data || !data.activity) {
+                    // No data or old format (sessions/health) — overwrite with new structure
+                    await statusRef.child('metrics').set(STATUS_SEED_METRICS).catch(() => {});
                     data = STATUS_SEED_METRICS;
                 }
                 statusRenderCharts(data);
@@ -3497,24 +3498,24 @@
 
         // --- TOKEN USAGE ---
         async function statusLoadTokens() {
-            if (!statusRef) {
+            const renderSeed = () => {
                 statusRenderTokenGauge('Claude', STATUS_SEED_TOKENS.claude, 'statusClaude');
                 statusRenderTokenGauge('Gemini', STATUS_SEED_TOKENS.gemini, 'statusGemini');
-                return;
-            }
+            };
+            if (!statusRef) { renderSeed(); return; }
             try {
                 const snap = await statusRef.child('token_usage').once('value');
                 let data = snap.val();
-                if (!data) {
-                    await statusRef.child('token_usage').set(STATUS_SEED_TOKENS);
+                if (!data || !data.claude?.limits || !data.gemini?.limits) {
+                    // No data or malformed — overwrite with seed
+                    await statusRef.child('token_usage').set(STATUS_SEED_TOKENS).catch(() => {});
                     data = STATUS_SEED_TOKENS;
                 }
-                statusRenderTokenGauge('Claude', data?.claude, 'statusClaude');
-                statusRenderTokenGauge('Gemini', data?.gemini, 'statusGemini');
+                statusRenderTokenGauge('Claude', data.claude || STATUS_SEED_TOKENS.claude, 'statusClaude');
+                statusRenderTokenGauge('Gemini', data.gemini || STATUS_SEED_TOKENS.gemini, 'statusGemini');
             } catch (e) {
                 console.error('Status: failed to load tokens', e);
-                statusRenderTokenGauge('Claude', STATUS_SEED_TOKENS.claude, 'statusClaude');
-                statusRenderTokenGauge('Gemini', STATUS_SEED_TOKENS.gemini, 'statusGemini');
+                renderSeed();
             }
         }
 
