@@ -8,6 +8,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
     <!-- Mermaid.js for embedded diagram rendering -->
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <!-- Chart.js for pairwise analysis charts -->
@@ -3642,7 +3643,30 @@
         }
 
         async function statusRefreshClaude() {
-            showToast('Claude refresh requires Cloud Function (Blaze plan). Use Firebase Console to check.');
+            try {
+                const btn = document.querySelector('#project-status .status-token-card:first-child .btn');
+                if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+
+                const fetchUsage = firebase.functions().httpsCallable('fetchClaudeUsage');
+                const result = await fetchUsage();
+
+                if (result.data && result.data.success) {
+                    statusRenderTokenGauge('Claude', result.data.data, 'statusClaude');
+                    showToast('Claude usage refreshed');
+                } else {
+                    showToast('Refresh returned no data — check Cloud Function logs');
+                }
+            } catch (e) {
+                console.error('Claude refresh failed:', e);
+                if (e.code === 'functions/not-found' || e.message?.includes('not-found')) {
+                    showToast('Cloud Function not deployed yet — upgrade to Blaze plan first');
+                } else {
+                    showToast('Refresh failed: ' + (e.message || 'Unknown error'));
+                }
+            } finally {
+                const btn = document.querySelector('#project-status .status-token-card:first-child .btn');
+                if (btn) { btn.disabled = false; btn.textContent = 'Refresh'; }
+            }
         }
 
         function statusShowGeminiForm() {
