@@ -487,6 +487,56 @@
         .status-badge.active { background: rgba(124, 193, 112, 0.15); color: var(--pmo-green); }
         .status-badge.deployed { background: rgba(196, 255, 97, 0.15); color: var(--ag-lime); }
         .status-badge.archived { background: rgba(127, 133, 137, 0.15); color: var(--pmo-grey); }
+        .status-badge.standing { background: rgba(255, 158, 27, 0.15); color: var(--pmo-gold); }
+
+        .status-info-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--muted);
+            font-size: 0.7rem;
+            padding: 0 0 0 5px;
+            vertical-align: middle;
+            opacity: 0.6;
+            transition: opacity 0.15s, color 0.15s;
+            line-height: 1;
+        }
+        .status-info-btn:hover { opacity: 1; color: var(--pmo-green); }
+
+        .status-info-popover {
+            display: none;
+            position: fixed;
+            background: #1a1a1e;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 0.78rem;
+            color: #94a3b8;
+            max-width: 280px;
+            width: max-content;
+            z-index: 200;
+            line-height: 1.5;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            pointer-events: none;
+        }
+        .status-info-popover.visible { display: block; }
+
+        .status-ai-badge {
+            font-size: 0.75rem;
+            color: var(--pmo-gold);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .status-github-link {
+            color: var(--ag-lime);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+        .status-github-link:hover { opacity: 1; text-decoration: underline; }
 
         .status-legend {
             margin-top: 20px;
@@ -1482,16 +1532,19 @@
                     <div id="status-projects" class="project-tab-content active">
                         <div class="status-card">
                             <div class="status-card-header">
-                                <h3>Active Projects</h3>
+                                <h3>Projects</h3>
+                                <button class="btn btn-secondary btn-small" onclick="statusResyncProjects()">Resync</button>
                             </div>
                             <table class="status-table">
                                 <thead>
                                     <tr>
                                         <th>Project</th>
+                                        <th>Parent</th>
                                         <th>Type</th>
                                         <th>Status</th>
-                                        <th>Parent</th>
                                         <th>Last Active</th>
+                                        <th>Current AI</th>
+                                        <th>GitHub</th>
                                         <th>Drive</th>
                                     </tr>
                                 </thead>
@@ -1510,14 +1563,20 @@
                                     <dd>Currently being worked on — code changes expected</dd>
                                     <dt><span class="status-badge deployed">Deployed</span></dt>
                                     <dd>Live in production and stable — maintenance only, no active feature work</dd>
+                                    <dt><span class="status-badge standing">Standing</span></dt>
+                                    <dd>Always-on permanent project — never archived (e.g. z_Playground, improve-workflow)</dd>
                                     <dt><span class="status-badge archived">Archived</span></dt>
                                     <dd>Work complete or paused indefinitely — moved to the archive</dd>
+                                    <dt>Parent</dt>
+                                    <dd>For Tab projects, the parent whose codebase and deployment they share</dd>
                                     <dt>Last Active</dt>
                                     <dd>Date of the most recent AI work session on this project</dd>
-                                    <dt>Parent</dt>
-                                    <dd>For Tab projects, the parent project whose codebase and deployment they share</dd>
+                                    <dt>Current AI</dt>
+                                    <dd>The AI tool currently assigned to this project (e.g. ClaudeCowork, ClaudeCLI, GeminiCLI)</dd>
+                                    <dt>GitHub</dt>
+                                    <dd>Link to the project's code repository — standalone and deployed projects only</dd>
                                     <dt>Drive</dt>
-                                    <dd>Link to the project's documentation folder on Google Drive (briefs, research, plans, artifacts)</dd>
+                                    <dd>Link to the project's Google Drive folder (briefs, research, plans, artifacts). Click ⓘ on any project name for a description.</dd>
                                 </dl>
                             </div>
                         </div>
@@ -3378,14 +3437,19 @@
         let statusRef = null;
         let statusActivityChart = null;
 
-        // Seed data matching current project registry
+        // Seed data — keep in sync with _System/project-registry.md
+        // Drive: Google Drive folder URLs. After editing, click Resync to push to Firebase.
+        // #TODO entries need their Google Drive folder URLs added.
         const STATUS_SEED_PROJECTS = {
-            'uae-director': { name: 'UAE Director', type: 'standalone', status: 'Active', parent: null, lastActive: '2026-02-08', drive: 'F:\\My Drive\\AI\\Projects\\uae-director' },
-            'hub-webapp': { name: 'Hub Webapp', type: 'standalone', status: 'Deployed', parent: null, lastActive: '2026-02-10', drive: 'F:\\My Drive\\AI\\Projects\\hub-webapp' },
-            'thought': { name: 'Thought Organizer', type: 'hub-tab', status: 'Active', parent: 'hub-webapp', lastActive: '2026-02-09', drive: 'F:\\My Drive\\AI\\Projects\\thought' },
-            'pairwise': { name: 'Pairwise Analysis', type: 'hub-tab', status: 'Active', parent: 'hub-webapp', lastActive: '2026-02-08', drive: 'F:\\My Drive\\AI\\Projects\\pairwise' },
-            'status': { name: 'Status Dashboard', type: 'hub-tab', status: 'Active', parent: 'hub-webapp', lastActive: '2026-02-10', drive: 'F:\\My Drive\\AI\\Projects\\status' },
-            'm4p-model': { name: 'M4P Model', type: 'standalone', status: 'Active', parent: null, lastActive: '2026-02-08', drive: 'F:\\My Drive\\AI\\Projects\\m4p-model' }
+            'hub-webapp':       { name: 'Hub Webapp',         type: 'standalone', status: 'Deployed', parent: null,        lastActive: '2026-02-10', currentAI: 'ClaudeCowork', github: 'https://github.com/3pmo/hub-webapp',  drive: 'https://drive.google.com/drive/folders/1mxTL8Wu_2cand7n8DxY02alGYAyOm_P0', description: 'Personal productivity hub — parent project for all tab sub-projects. Live at ecosystem-hub-3pmo.web.app.' },
+            'status':           { name: 'Status Dashboard',   type: 'hub-tab',    status: 'Active',   parent: 'hub-webapp', lastActive: '2026-02-10', currentAI: 'ClaudeCowork', github: null,                                   drive: '#TODO', description: 'Dashboard tab — project table, performance metrics, Claude/Gemini token usage with API integration.' },
+            'thought':          { name: 'Thought Organizer',  type: 'hub-tab',    status: 'Active',   parent: 'hub-webapp', lastActive: '2026-02-09', currentAI: 'ClaudeCowork', github: null,                                   drive: '#TODO', description: 'Thought capture, editing, and visualisation — Capture / Review & Edit / Visualise tabs.' },
+            'pairwise':         { name: 'Pairwise Analysis',  type: 'hub-tab',    status: 'Active',   parent: 'hub-webapp', lastActive: '2026-02-08', currentAI: 'ClaudeCowork', github: null,                                   drive: '#TODO', description: 'Pairwise comparison tool for prioritising options — integrated as a tab in hub-webapp.' },
+            'uae-director':     { name: 'UAE Director',       type: 'standalone', status: 'Active',   parent: null,         lastActive: '2026-02-10', currentAI: 'ClaudeCowork', github: 'https://github.com/3pmo/UAE-Director', drive: '#TODO', description: 'Job search campaign for Director roles in UAE — pivoting to specialist FS/SWF recruiters.' },
+            'm4p-model':        { name: 'M4P Model',          type: 'standalone', status: 'Active',   parent: null,         lastActive: '2026-02-12', currentAI: 'ClaudeCowork', github: null,                                   drive: '#TODO', description: 'Enterprise Operating Model — Component 1: Executive Capability Model (V4, 24 caps, AI Ready).' },
+            'system-cleanup':   { name: 'System Cleanup',     type: 'standalone', status: 'Active',   parent: null,         lastActive: '2026-02-28', currentAI: 'ClaudeCowork', github: null,                                   drive: '#TODO', description: 'Multi-phase system cleanup — PATH, OneDrive→Google Drive migration, drive reconciliation. Phases A–C complete.' },
+            'improve-workflow': { name: 'Improve Workflow',   type: 'standalone', status: 'Standing', parent: null,         lastActive: '2026-03-04', currentAI: 'ClaudeCLI',    github: null,                                   drive: '#TODO', description: 'Standing project for all CI/CD, DevOps, and workflow improvements to the 3PMO AI ecosystem.' },
+            'z_Playground':     { name: 'z_Playground',       type: 'standalone', status: 'Standing', parent: null,         lastActive: null,          currentAI: 'ClaudeCowork', github: null,                                   drive: '#TODO', description: 'Default play area for experiments, throwaway scripts, and exploratory work.' }
         };
 
         const STATUS_SEED_METRICS = {
@@ -3451,20 +3515,99 @@
             const tbody = document.getElementById('statusProjectsBody');
             if (!tbody) return;
             const esc = s => s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
+
+            // Build display-name lookup so Parent column shows "Hub Webapp" not "hub-webapp"
+            const nameOf = id => (data[id] && data[id].name) ? data[id].name : id;
+
             const rows = Object.entries(data).map(([id, p]) => {
                 const typeClass = p.type === 'hub-tab' ? 'hub-tab' : 'standalone';
-                const statusClass = (p.status || 'Active').toLowerCase();
-                const drivePath = p.drive || ('F:\\My Drive\\AI\\Projects\\' + id);
+                const statusClass = (p.status || 'Active').toLowerCase().replace(/\s+/g, '-');
+
+                // Description info button (works via JS popover — desktop hover + mobile tap)
+                const desc = p.description || '';
+                const infoBtn = desc
+                    ? `<button class="status-info-btn" data-desc="${esc(desc)}" onclick="statusToggleDesc(event,this)" aria-label="Project description">ⓘ</button>`
+                    : '';
+                const nameCell = `<strong>${esc(p.name)}</strong>${infoBtn}`;
+
+                // Parent: show display name, not slug
+                const parentCell = p.parent ? esc(nameOf(p.parent)) : '—';
+
+                // Current AI
+                const aiCell = p.currentAI ? `<span class="status-ai-badge">${esc(p.currentAI)}</span>` : '—';
+
+                // GitHub
+                const githubCell = p.github
+                    ? `<a href="${esc(p.github)}" class="status-github-link" target="_blank" rel="noopener">Repo</a>`
+                    : '—';
+
+                // Drive: Google Drive URL or #TODO indicator
+                const driveCell = (!p.drive || p.drive === '#TODO')
+                    ? `<span style="color:var(--pmo-gold);font-size:0.75rem;opacity:0.7">TODO</span>`
+                    : `<a href="${esc(p.drive)}" class="status-drive-link" target="_blank" rel="noopener">Open</a>`;
+
                 return `<tr>
-                    <td><strong>${esc(p.name)}</strong></td>
+                    <td>${nameCell}</td>
+                    <td>${parentCell}</td>
                     <td><span class="status-type-badge ${typeClass}">${p.type === 'hub-tab' ? 'Tab' : 'Standalone'}</span></td>
                     <td><span class="status-badge ${statusClass}">${esc(p.status) || 'Active'}</span></td>
-                    <td>${esc(p.parent) || '—'}</td>
                     <td>${esc(p.lastActive) || '—'}</td>
-                    <td><a href="file:///${drivePath.replace(/\\/g, '/')}" class="status-drive-link" title="${esc(drivePath)}">Open</a></td>
+                    <td>${aiCell}</td>
+                    <td>${githubCell}</td>
+                    <td>${driveCell}</td>
                 </tr>`;
             }).join('');
             tbody.innerHTML = rows;
+        }
+
+        // JS popover for description — works on desktop (click) and mobile (tap)
+        let _statusActivePopover = null;
+        function statusToggleDesc(e, btn) {
+            e.stopPropagation();
+            let popover = document.getElementById('statusDescPopover');
+            if (!popover) {
+                popover = document.createElement('div');
+                popover.id = 'statusDescPopover';
+                popover.className = 'status-info-popover';
+                document.body.appendChild(popover);
+                document.addEventListener('click', function() {
+                    popover.classList.remove('visible');
+                    _statusActivePopover = null;
+                });
+            }
+            if (_statusActivePopover === btn) {
+                popover.classList.remove('visible');
+                _statusActivePopover = null;
+                return;
+            }
+            popover.textContent = btn.dataset.desc;
+            popover.classList.add('visible');
+            _statusActivePopover = btn;
+            // Position below the button
+            const rect = btn.getBoundingClientRect();
+            const pw = 280;
+            let left = rect.left;
+            if (left + pw > window.innerWidth - 12) left = window.innerWidth - pw - 12;
+            popover.style.left = left + 'px';
+            popover.style.top = (rect.bottom + 8) + 'px';
+        }
+
+        // Force-overwrites Firebase hub_status/projects with current seed data,
+        // then re-renders. Use after editing STATUS_SEED_PROJECTS in code.
+        async function statusResyncProjects() {
+            const btn = document.querySelector('[onclick="statusResyncProjects()"]');
+            if (btn) { btn.textContent = 'Syncing…'; btn.disabled = true; }
+            try {
+                if (statusRef) {
+                    await statusRef.child('projects').set(STATUS_SEED_PROJECTS);
+                }
+                statusRenderProjects(STATUS_SEED_PROJECTS);
+                if (btn) { btn.textContent = 'Resynced ✓'; setTimeout(() => { btn.textContent = 'Resync'; btn.disabled = false; }, 2000); }
+            } catch (e) {
+                console.error('Resync failed', e);
+                statusRenderProjects(STATUS_SEED_PROJECTS);
+                if (btn) { btn.textContent = 'Resync'; btn.disabled = false; }
+            }
         }
 
         // --- PERFORMANCE METRICS ---
@@ -3740,6 +3883,8 @@
         window.statusLoad = statusLoad;
         window.statusLoadTokens = statusLoadTokens;
         window.statusRefreshClaude = statusRefreshClaude;
+        window.statusResyncProjects = statusResyncProjects;
+        window.statusToggleDesc = statusToggleDesc;
         window.statusShowGeminiForm = statusShowGeminiForm;
         window.statusHideGeminiForm = statusHideGeminiForm;
         window.statusSaveGemini = statusSaveGemini;
