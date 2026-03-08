@@ -1526,6 +1526,7 @@
                         <button class="project-tab active" data-tab="projects">Projects</button>
                         <button class="project-tab" data-tab="metrics">Metrics</button>
                         <button class="project-tab" data-tab="tokens">Tokens</button>
+                        <button class="project-tab" data-tab="workflow">Workflow</button>
                     </div>
 
                     <!-- TAB: Projects -->
@@ -1544,6 +1545,8 @@
                                         <th>Status</th>
                                         <th>Last Active</th>
                                         <th>Current AI</th>
+                                        <th title="Open bugs">🐛</th>
+                                        <th title="Open enhancements">🚀</th>
                                         <th>GitHub</th>
                                         <th>Drive</th>
                                     </tr>
@@ -1573,6 +1576,10 @@
                                     <dd>Date of the most recent AI work session on this project</dd>
                                     <dt>Current AI</dt>
                                     <dd>The AI tool currently assigned to this project (e.g. ClaudeCowork, ClaudeCLI, GeminiCLI)</dd>
+                                    <dt>🐛 Open Bugs</dt>
+                                    <dd>Count of open bugs in the project's BACKLOG.md. Red = action needed; greyed-out 0 = clean.</dd>
+                                    <dt>🚀 Open Enhancements</dt>
+                                    <dd>Count of open enhancement requests in the project's BACKLOG.md. Lime = items queued; greyed-out 0 = none pending.</dd>
                                     <dt>GitHub</dt>
                                     <dd>Link to the project's code repository — standalone and deployed projects only</dd>
                                     <dt>Drive</dt>
@@ -1675,6 +1682,14 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                    <!-- TAB: Workflow -->
+                    <div id="status-workflow" class="project-tab-content" style="padding:0;height:calc(100vh - 120px);">
+                        <iframe
+                            src="workflow-diagram.html"
+                            style="width:100%;height:100%;border:none;display:block;"
+                            title="AI Workspace Workflow Diagram"
+                        ></iframe>
                     </div>
                 </div> <!-- /project-status -->
 
@@ -2257,7 +2272,8 @@
                 tabs: [
                     { id: 'projects', label: 'Projects' },
                     { id: 'metrics', label: 'Metrics' },
-                    { id: 'tokens', label: 'Tokens' }
+                    { id: 'tokens', label: 'Tokens' },
+                    { id: 'workflow', label: 'Workflow' }
                 ],
                 onActivate: function() { statusLoad(); }
             },
@@ -3441,15 +3457,17 @@
         // Drive: Google Drive folder URLs. After editing, click Resync to push to Firebase.
         // #TODO entries need their Google Drive folder URLs added.
         const STATUS_SEED_PROJECTS = {
-            'hub-webapp':       { name: 'Hub Webapp',         type: 'standalone', status: 'Deployed', parent: null,        lastActive: '2026-02-10', currentAI: 'ClaudeCowork', github: 'https://github.com/3pmo/hub-webapp',  drive: 'https://drive.google.com/drive/folders/1mxTL8Wu_2cand7n8DxY02alGYAyOm_P0', description: 'Personal productivity hub — parent project for all tab sub-projects. Live at ecosystem-hub-3pmo.web.app.' },
-            'status':           { name: 'Status Dashboard',   type: 'hub-tab',    status: 'Active',   parent: 'hub-webapp', lastActive: '2026-02-10', currentAI: 'ClaudeCowork', github: null,                                   drive: '#TODO', description: 'Dashboard tab — project table, performance metrics, Claude/Gemini token usage with API integration.' },
-            'thought':          { name: 'Thought Organizer',  type: 'hub-tab',    status: 'Active',   parent: 'hub-webapp', lastActive: '2026-02-09', currentAI: 'ClaudeCowork', github: null,                                   drive: '#TODO', description: 'Thought capture, editing, and visualisation — Capture / Review & Edit / Visualise tabs.' },
-            'pairwise':         { name: 'Pairwise Analysis',  type: 'hub-tab',    status: 'Active',   parent: 'hub-webapp', lastActive: '2026-02-08', currentAI: 'ClaudeCowork', github: null,                                   drive: '#TODO', description: 'Pairwise comparison tool for prioritising options — integrated as a tab in hub-webapp.' },
-            'uae-director':     { name: 'UAE Director',       type: 'standalone', status: 'Active',   parent: null,         lastActive: '2026-02-10', currentAI: 'ClaudeCowork', github: 'https://github.com/3pmo/UAE-Director', drive: '#TODO', description: 'Job search campaign for Director roles in UAE — pivoting to specialist FS/SWF recruiters.' },
-            'm4p-model':        { name: 'M4P Model',          type: 'standalone', status: 'Active',   parent: null,         lastActive: '2026-02-12', currentAI: 'ClaudeCowork', github: null,                                   drive: '#TODO', description: 'Enterprise Operating Model — Component 1: Executive Capability Model (V4, 24 caps, AI Ready).' },
-            'system-cleanup':   { name: 'System Cleanup',     type: 'standalone', status: 'Active',   parent: null,         lastActive: '2026-02-28', currentAI: 'ClaudeCowork', github: null,                                   drive: '#TODO', description: 'Multi-phase system cleanup — PATH, OneDrive→Google Drive migration, drive reconciliation. Phases A–C complete.' },
-            'improve-workflow': { name: 'Improve Workflow',   type: 'standalone', status: 'Standing', parent: null,         lastActive: '2026-03-04', currentAI: 'ClaudeCLI',    github: null,                                   drive: '#TODO', description: 'Standing project for all CI/CD, DevOps, and workflow improvements to the 3PMO AI ecosystem.' },
-            'zTemp':          { name: 'zTemp',       type: 'standalone', status: 'Standing', parent: null,         lastActive: null,          currentAI: 'ClaudeCowork', github: null,                                   drive: '#TODO', description: 'Default play area for experiments, throwaway scripts, and exploratory work.' }
+            'hub-webapp':       { name: 'Hub Webapp',         type: 'standalone', status: 'Deployed', parent: null,         lastActive: '2026-03-08', currentAI: 'ClaudeCowork', openBugs: 2, openEnhancements: 4, github: 'https://github.com/3pmo/hub-webapp',  drive: 'https://drive.google.com/drive/folders/1mxTL8Wu_2cand7n8DxY02alGYAyOm_P0', description: 'Personal productivity hub — parent project for all tab sub-projects. Live at ecosystem-hub-3pmo.web.app.' },
+            'status':           { name: 'Status Dashboard',   type: 'hub-tab',    status: 'Active',   parent: 'hub-webapp', lastActive: '2026-03-08', currentAI: 'ClaudeCowork', openBugs: 0, openEnhancements: 0, github: null,                                   drive: '#TODO', description: 'Dashboard tab — project table, performance metrics, Claude/Gemini token usage with API integration.' },
+            'thought':          { name: 'Thought Organizer',  type: 'hub-tab',    status: 'Active',   parent: 'hub-webapp', lastActive: '2026-02-09', currentAI: 'ClaudeCowork', openBugs: 0, openEnhancements: 0, github: null,                                   drive: '#TODO', description: 'Thought capture, editing, and visualisation — Capture / Review & Edit / Visualise tabs.' },
+            'pairwise':         { name: 'Pairwise Analysis',  type: 'hub-tab',    status: 'Active',   parent: 'hub-webapp', lastActive: '2026-02-08', currentAI: 'ClaudeCowork', openBugs: 0, openEnhancements: 0, github: null,                                   drive: '#TODO', description: 'Pairwise comparison tool for prioritising options — integrated as a tab in hub-webapp.' },
+            'legacy':           { name: 'Legacy',             type: 'standalone', status: 'Active',   parent: null,         lastActive: '2026-03-06', currentAI: 'ClaudeCowork', openBugs: 0, openEnhancements: 0, github: null,                                   drive: '#TODO', description: 'Legacy platform — structured curriculum positioning Will Levy at the intersection of Strategic Portfolio Management and Agentic AI. Product: Portfolio Intelligence.' },
+            'uae-director':     { name: 'UAE Director',       type: 'standalone', status: 'Active',   parent: null,         lastActive: '2026-02-10', currentAI: 'ClaudeCowork', openBugs: 0, openEnhancements: 0, github: 'https://github.com/3pmo/UAE-Director', drive: '#TODO', description: 'Job search campaign for Director roles in UAE — pivoting to specialist FS/SWF recruiters.' },
+            'm4p-model':        { name: 'M4P Model',          type: 'standalone', status: 'Active',   parent: null,         lastActive: '2026-02-12', currentAI: 'ClaudeCowork', openBugs: 0, openEnhancements: 0, github: null,                                   drive: '#TODO', description: 'Enterprise Operating Model — Component 1: Executive Capability Model (V4, 24 caps, AI Ready).' },
+            'system-cleanup':   { name: 'System Cleanup',     type: 'standalone', status: 'Active',   parent: null,         lastActive: '2026-02-28', currentAI: 'ClaudeCowork', openBugs: 0, openEnhancements: 0, github: null,                                   drive: '#TODO', description: 'Multi-phase system cleanup — PATH, OneDrive→Google Drive migration, drive reconciliation. Phases A–C complete.' },
+            'improve-workflow': { name: 'Improve Workflow',   type: 'standalone', status: 'Standing', parent: null,         lastActive: '2026-03-08', currentAI: 'GeminiCLI',    openBugs: 0, openEnhancements: 9, github: null,                                   drive: '#TODO', description: 'Standing project for all CI/CD, DevOps, and workflow improvements to the 3PMO AI ecosystem.' },
+            'improve-brand':    { name: 'Improve Brand',      type: 'standalone', status: 'Active',   parent: null,         lastActive: '2026-03-07', currentAI: 'GeminiCLI',    openBugs: 0, openEnhancements: 0, github: null,                                   drive: '#TODO', description: 'Brand-specific improvements project — ensures all _system workflow files are updated when the brand evolves.' },
+            'zTemp':            { name: 'zTemp',              type: 'standalone', status: 'Standing', parent: null,         lastActive: '2026-03-07', currentAI: 'ClaudeCowork', openBugs: 0, openEnhancements: 0, github: null,                                   drive: '#TODO', description: 'Default play area for experiments, throwaway scripts, and exploratory work. Never archived.' }
         };
 
         const STATUS_SEED_METRICS = {
@@ -3546,6 +3564,13 @@
                     ? `<span style="color:var(--pmo-gold);font-size:0.75rem;opacity:0.7">TODO</span>`
                     : `<a href="${esc(p.drive)}" class="status-drive-link" target="_blank" rel="noopener">Open</a>`;
 
+                const bugsCell = (p.openBugs > 0)
+                    ? `<span style="color:#ff6b6b;font-weight:600">${p.openBugs}</span>`
+                    : `<span style="opacity:0.4">0</span>`;
+                const enhCell = (p.openEnhancements > 0)
+                    ? `<span style="color:#c4ff61;font-weight:600">${p.openEnhancements}</span>`
+                    : `<span style="opacity:0.4">0</span>`;
+
                 return `<tr>
                     <td>${nameCell}</td>
                     <td>${parentCell}</td>
@@ -3553,6 +3578,8 @@
                     <td><span class="status-badge ${statusClass}">${esc(p.status) || 'Active'}</span></td>
                     <td>${esc(p.lastActive) || '—'}</td>
                     <td>${aiCell}</td>
+                    <td style="text-align:center">${bugsCell}</td>
+                    <td style="text-align:center">${enhCell}</td>
                     <td>${githubCell}</td>
                     <td>${driveCell}</td>
                 </tr>`;
