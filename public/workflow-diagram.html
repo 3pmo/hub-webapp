@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Workspace — Proposed End-State Workflow</title>
+<title>AI Workspace — Workflow End-State</title>
 <style>
   :root {
     --col1: #1a1a2e;
@@ -184,11 +184,11 @@
     align-items: center;
     gap: 8px;
   }
-  .proposed-tag {
+  .active-tag {
     font-size: 9px;
-    background: rgba(230,126,34,0.25);
-    color: var(--accent-amber);
-    border: 1px solid var(--accent-amber);
+    background: rgba(46, 204, 113, 0.25);
+    color: var(--new-acc);
+    border: 1px solid var(--new-acc);
     border-radius: 3px;
     padding: 1px 6px;
     font-weight: 700;
@@ -457,12 +457,72 @@
     height: 1px;
     background: var(--card-border);
   }
+
+  /* ── GIT & DEPLOY SECTION ── */
+  .git-deploy-section {
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    background: var(--card);
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  .git-deploy-section h3 {
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: var(--accent-teal);
+  }
+  .gd-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+    margin-bottom: 12px;
+  }
+  .gd-table th {
+    text-align: left;
+    padding: 5px 8px;
+    background: rgba(22,160,133,0.1);
+    border-bottom: 1px solid var(--card-border);
+    color: var(--accent-teal);
+    font-weight: 700;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .gd-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid rgba(45,53,97,0.3);
+    color: var(--text);
+  }
+  .gd-table tr:last-child td { border-bottom: none; }
+  .gd-table .yes { color: var(--accent-green); }
+  .gd-table .no { color: var(--accent-red); }
+  .gd-table .na { color: var(--text-dim); font-style: italic; }
+  .gd-table .step-label { font-weight: 600; color: var(--text); white-space: nowrap; }
+  .gd-panels {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 12px;
+  }
+  .gd-contrib-box {
+    background: rgba(22,160,133,0.08);
+    border: 1px solid rgba(22,160,133,0.3);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 11px;
+  }
+  .gd-contrib-box strong { color: var(--accent-teal); }
+  .gd-contrib-box .tool-yes { color: var(--accent-green); font-weight: 600; }
+  .gd-contrib-box .tool-no { color: var(--accent-red); font-weight: 600; }
+  .gd-contrib-box ul { list-style: none; padding: 0; margin: 6px 0 0 0; }
+  .gd-contrib-box li { margin-bottom: 2px; }
+  .gd-contrib-box li::before { content: '→ '; color: var(--accent-teal); }
 </style>
 </head>
 <body>
 
-<h1>AI Workspace — Proposed End-State Workflow</h1>
-<div class="subtitle">All 5 full-protocol products · All triggers · All files · <em>Proposed</em> SESSION-CARD.md bootstrap</div>
+<h1>AI Workspace — Workflow End-State</h1>
+<div class="subtitle">All 5 full-protocol products · All triggers · All files · Git & Deploy · SESSION-CARD.md bootstrap · <em>Updated 2026-03-15</em></div>
 
 <!-- ── SECTION 1: TOOLS ── -->
 <div class="section-label">① Entry Points — AI Products</div>
@@ -473,36 +533,38 @@
     <div class="tool-name">ClaudeCLI</div>
     <div class="tool-product">Claude CLI · Anthropic</div>
     <span class="tool-badge badge-full">Full Protocol</span>
-    <div class="tool-meta">Local · <code>C:\Users\willl\Projects\</code></div>
-    <div class="tool-entry">Entry point: <span class="entry-none">Not yet configured</span></div>
-    <div class="gap-note">⚠ Needs C:\Users\willl\.claude\CLAUDE.md</div>
+    <div class="tool-meta" style="margin-bottom:4px"><strong style="color:#7fb3d3">① cd:</strong> <code>C:\Users\willl\Projects\[project]</code></div>
+    <div class="tool-meta" style="margin-bottom:4px"><strong style="color:var(--accent-green)">② Reads:</strong> <code>~\.claude\CLAUDE.md</code> → <code>SESSION-CARD.md</code> ✓ <em style="color:var(--text-dim);font-size:9px">(any dir)</em></div>
+    <div class="tool-meta"><strong style="color:var(--text-dim)">Also:</strong> <code>AI\CLAUDE.md</code> fires when Drive mounted ✓</div>
   </div>
 
   <div class="tool-card full">
     <div class="tool-name">ClaudeCowork</div>
     <div class="tool-product">Claude Cowork · Anthropic</div>
     <span class="tool-badge badge-full">Full Protocol</span>
-    <div class="tool-meta">Local · <code>C:\Users\willl\Projects\</code></div>
-    <div class="tool-entry">Entry point: <span class="entry-file">Global Instructions setting</span></div>
-    <div class="tool-entry" style="font-size:10px;color:var(--text-dim)">→ reads protocols.md on start</div>
+    <div class="tool-meta" style="margin-bottom:4px"><strong style="color:#7fb3d3">① Mount:</strong> User selects Drive <code>AI\</code> folder → VM sees <code>/mnt/AI/</code></div>
+    <div class="tool-meta" style="margin-bottom:4px"><strong style="color:#7fb3d3">② Initiate:</strong> Global Instructions fires automatically → <code>First read SESSION-CARD.md</code></div>
+    <div class="tool-meta"><strong style="color:var(--accent-green)">③ Reads:</strong> Claude resolves Windows path → reads <code>/mnt/AI/_System/SESSION-CARD.md</code> ✓</div>
+    <div class="new-note" style="margin-top:5px">⚠ Path translation is implicit — folder must be mounted as <code>AI</code></div>
   </div>
 
   <div class="tool-card full">
     <div class="tool-name">GeminiCLI</div>
     <div class="tool-product">Gemini CLI · Google</div>
     <span class="tool-badge badge-full">Full Protocol</span>
-    <div class="tool-meta">Local · <code>C:\Users\willl\Projects\</code></div>
-    <div class="tool-entry">Entry point: <span class="entry-none">None currently</span></div>
-    <div class="gap-note">⚠ Gap — SESSION-CARD fixes this</div>
+    <div class="tool-meta" style="margin-bottom:4px"><strong style="color:#7fb3d3">① cd:</strong> <code>C:\Users\willl\Projects\[project]</code></div>
+    <div class="tool-meta" style="margin-bottom:4px"><strong style="color:var(--accent-green)">② Reads:</strong> <code>~\.gemini\GEMINI.md</code> → <code>SESSION-CARD.md</code> ✓ <em style="color:var(--text-dim);font-size:9px">(any dir)</em></div>
+    <div class="tool-meta"><strong style="color:var(--text-dim)">Also:</strong> <code>AI\GEMINI.md</code> fires when Drive mounted ✓</div>
   </div>
 
   <div class="tool-card full">
     <div class="tool-name">AntiGravity</div>
-    <div class="tool-product">Google Antigravity · Google</div>
+    <div class="tool-product">Google Antigravity · Google · <em style="color:var(--accent-teal);font-size:10px">Gemini-based · Multi-chat</em></div>
     <span class="tool-badge badge-full">Full Protocol</span>
-    <div class="tool-meta">Local · <code>C:\Users\willl\Projects\</code></div>
-    <div class="tool-entry">Entry point: <span class="entry-none">None currently</span></div>
-    <div class="gap-note">⚠ Gap — SESSION-CARD fixes this</div>
+    <div class="tool-meta" style="margin-bottom:4px"><strong style="color:#7fb3d3">① Open folder:</strong> <code>C:\Users\willl\My Drive\AI</code> <em style="color:var(--text-dim);font-size:9px">(same as Cowork)</em></div>
+    <div class="tool-meta" style="margin-bottom:4px"><strong style="color:var(--accent-green)">② Reads:</strong> <code>AI\GEMINI.md</code> → <code>SESSION-CARD.md</code> ✓ + global <code>~\.gemini\</code> + platform <code>&lt;RULE&gt;</code></div>
+    <div class="tool-meta"><strong style="color:var(--text-dim)">③ Each agent:</strong> navigates to <code>Projects\[project]</code> via absolute path</div>
+    <div class="new-note" style="margin-top:5px">Multi-chat: parallel agents on different projects — parity with Cowork</div>
   </div>
 
   <div class="tool-card cloud">
@@ -528,7 +590,7 @@
 <div class="connector-section">Will types a trigger command</div>
 
 <!-- ── SECTION 2: TRIGGERS ── -->
-<div class="section-label">② Trigger Commands (Proposed #17 simple command set)</div>
+<div class="section-label">② Trigger Commands (Codified in <code>protocols.md</code>)</div>
 
 <div class="triggers-row">
   <div class="trigger-pill trig-new">
@@ -537,7 +599,7 @@
   </div>
   <div class="trigger-pill trig-cont">
     Start [project] / Continue [project]
-    <div class="sub">Resume existing project · name skips "which project?" question</div>
+    <div class="sub">Resume project · name skips "which project?" question</div>
   </div>
   <div class="trigger-pill trig-close">
     Close
@@ -556,45 +618,38 @@
 <div class="connector-section">All full-protocol tools read SESSION-CARD.md first</div>
 
 <!-- ── SECTION 3: SESSION CARD ── -->
-<div class="section-label">③ Session Bootstrap — Proposed SESSION-CARD.md</div>
+<div class="section-label">③ Session Bootstrap — SESSION-CARD.md</div>
 
 <div class="session-card-section">
   <div class="sc-title">
     📋 SESSION-CARD.md
-    <span class="proposed-tag">PROPOSED — Not yet created</span>
-    <span style="font-size:11px;color:var(--text-dim);font-weight:400;margin-left:4px">~50 lines · Single upfront read for all tools</span>
+    <span class="active-tag">ACTIVE — Live</span>
+    <span style="font-size:11px;color:var(--text-dim);font-weight:400;margin-left:4px">~50 lines · Mandatory upfront read for all tools</span>
   </div>
   <div class="sc-body">
     <div class="sc-col">
-      <div class="sc-label">Contains</div>
+      <div class="sc-label">Core Mandate Content</div>
       <ul class="sc-contains">
-        <li>5 non-negotiables (location rules, approval rules, naming, timestamp std., branding)</li>
-        <li>Per-tool behaviour table (all 5 full-protocol tools — auth, root, export notes)</li>
-        <li>Active projects summary (names, types, statuses)</li>
-        <li>Session lifecycle quick-ref (which template → which trigger)</li>
-        <li>_System file inventory (one-line per file)</li>
+        <li><strong>Non-Negotiables:</strong> Location rules, approval rules, naming, branding.</li>
+        <li><strong>Tool Table:</strong> Per-tool behaviour (Claude, Gemini, AntiGravity, AIStudio).</li>
+        <li><strong>Active Projects:</strong> Names, types, and current statuses from registry.</li>
+        <li><strong>Trigger Mappings:</strong> Quick-ref for Start, New, Close, Improve.</li>
+        <li><strong>System Inventory:</strong> One-line summary of every file in <code>_System/</code>.</li>
       </ul>
     </div>
     <div class="sc-col">
-      <div class="sc-label">Replaces upfront read</div>
-      <div class="sc-replaces">
-        <div class="old">protocols.md <span class="old-size">~250 lines</span></div>
-        <div class="old">project-registry.md <span class="old-size">~100 lines</span></div>
-        <div class="old">3PMO_BRAND.md <span class="old-size">~200 lines</span></div>
-        <div class="divider">↓ replaced by</div>
-        <div class="new-item">✓ SESSION-CARD.md ~50 lines</div>
-      </div>
+      <div class="sc-label">Deep-Context Triggering</div>
       <div class="sc-conditional">
-        Still read when needed:<br>
-        <span>protocols.md</span> → only when modifying _System files<br>
-        <span>project-registry.md</span> (full) → when creating/closing a project<br>
-        <span>3PMO_BRAND.md</span> → only when producing a visual output
+        The full system files are <strong>only read when the task requires it:</strong><br><br>
+        <span>protocols.md</span> → Triggered when modifying _System rules or templates.<br>
+        <span>project-registry.md</span> → Triggered when creating or closing a project.<br>
+        <span>BRAND.md</span> → Triggered when producing visual/formatted outputs.
       </div>
     </div>
     <div class="token-save">
-      <strong>~500 lines</strong>
-      saved per session
-      <div style="font-size:10px;margin-top:4px;color:#7dcea0">550 → ~50 lines<br>upfront</div>
+      <strong>-90%</strong>
+      Context Overhead
+      <div style="font-size:10px;margin-top:4px;color:#7dcea0">550 &rarr; ~50 lines<br>upfront</div>
     </div>
   </div>
 </div>
@@ -674,7 +729,7 @@
       <div class="file-item"><span class="file-icon">📒</span><div><div class="file-name">SESSION-LOG.md</div><div class="file-note">previous "Next session" items</div></div></div>
       <div class="file-item"><span class="file-icon">📝</span><div><div class="file-name">PROJECT_BRIEF.md</div><div class="file-note">compare against session changes</div></div></div>
       <div class="file-item"><span class="file-icon">📋</span><div><div class="file-name">BACKLOG.md</div><div class="file-note">existing items to mark resolved</div></div></div>
-      <div class="file-item"><span class="file-icon">🎨</span><div><div class="file-name">3PMO_BRAND.md</div><div class="file-note">only if visual output produced</div></div></div>
+      <div class="file-item"><span class="file-icon">🎨</span><div><div class="file-name">BRAND.md</div><div class="file-note">only if visual output produced</div></div></div>
     </div>
 
     <div class="wf-section steps">
@@ -740,43 +795,43 @@
 </div>
 
 <!-- ── SECTION 5: PER-TOOL NOTES ── -->
-<div class="section-label">⑤ Per-Tool Behaviour Notes (proposed SESSION-CARD.md content)</div>
+<div class="section-label">⑤ Per-Tool Behaviour Notes (SESSION-CARD.md content)</div>
 
 <div class="tool-notes">
   <div class="tn-card">
     <div class="tn-name" style="color:var(--accent-blue)">ClaudeCLI</div>
     <div class="tn-note">
-      <span class="gap">⚠</span> No entry point — needs <code>C:\Users\willl\.claude\CLAUDE.md</code><br>
-      <span class="gap">⚠</span> Will NOT read protocols.md until fixed<br>
-      <span class="ok">✓</span> Full filesystem access · git push works once configured<br>
-      Drive root: <code>C:\Users\willl\My Drive\AI\</code>
+      <span class="ok">✓</span> <strong>cd</strong> <code>C:\Users\willl\Projects\[project]</code> then run <code>claude</code><br>
+      <span class="ok">✓</span> Global config <code>~\.claude\CLAUDE.md</code> → SESSION-CARD.md (any dir) [#28 ✅ 2026-03-15]<br>
+      <span class="ok">✓</span> Drive config <code>AI\CLAUDE.md</code> → SESSION-CARD.md (Drive-mounted sessions)<br>
+      <span class="ok">✓</span> Full filesystem access · git push works once configured
     </div>
   </div>
   <div class="tn-card">
     <div class="tn-name" style="color:var(--accent-blue)">ClaudeCowork</div>
     <div class="tn-note">
-      <span class="ok">✓</span> Global Instructions → reads protocols.md on start<br>
-      <span class="gap">⚠</span> No trigger map yet — #17 pending<br>
-      <span class="gap">⚠</span> git push requires PAT<br>
-      Drive root: <code>C:\Users\willl\My Drive\AI\</code> (mounted as /mnt/AI/)
+      <span class="ok">✓</span> <strong>No cd needed</strong> — mount Drive <code>AI\</code> folder at session start<br>
+      <span class="ok">✓</span> Global Instructions fires automatically → SESSION-CARD.md<br>
+      <span class="ok">✓</span> Trigger map implemented (#17)<br>
+      <span class="gap">⚠</span> git push requires PAT (see CONTINUE-PROJECT.md)
     </div>
   </div>
   <div class="tn-card">
     <div class="tn-name" style="color:#56d364)">GeminiCLI</div>
     <div class="tn-note">
-      <span class="gap">⚠</span> No entry point file currently<br>
-      <span class="fix">→ Fix:</span> SESSION-CARD.md shared at session start<br>
-      <span class="fix">→ Fix:</span> Add GEMINI.md / MEMORY.md equivalent<br>
-      Drive root: <code>F:\My Drive\AI\</code>
+      <span class="ok">✓</span> <strong>cd</strong> <code>C:\Users\willl\Projects\[project]</code> then run <code>gemini</code><br>
+      <span class="ok">✓</span> Global config <code>~\.gemini\GEMINI.md</code> → SESSION-CARD.md (any dir) [#28 ✅ 2026-03-15]<br>
+      <span class="ok">✓</span> Drive config <code>AI\GEMINI.md</code> → SESSION-CARD.md (Drive-mounted sessions)<br>
+      <span class="ok">✓</span> Full filesystem access · autonomous tool loops
     </div>
   </div>
   <div class="tn-card">
     <div class="tn-name" style="color:#56d364)">AntiGravity</div>
     <div class="tn-note">
-      <span class="gap">⚠</span> No entry point file currently<br>
-      <span class="fix">→ Fix:</span> SESSION-CARD.md shared at session start<br>
-      <span class="fix">→ Fix:</span> Determine tool-specific config file format<br>
-      Drive root: <code>F:\My Drive\AI\</code>
+      <span class="ok">✓</span> <strong>Open folder</strong> <code>C:\Users\willl\My Drive\AI</code> (same as Cowork)<br>
+      <span class="ok">✓</span> Gemini-based — reads <code>AI\GEMINI.md</code> + global <code>~\.gemini\</code> + platform <code>&lt;RULE&gt;</code><br>
+      <span class="ok">✓</span> Each agent navigates to <code>Projects\[project]</code> for code via absolute paths<br>
+      <span class="ok">✓</span> Multi-chat: parallel agents on different projects (parity with Cowork)
     </div>
   </div>
   <div class="tn-card">
@@ -785,13 +840,135 @@
       <span class="gap">⚠</span> Cloud only — no local root<br>
       <span class="ok">✓</span> Share SESSION-CARD.md path to bootstrap<br>
       <span class="fix">→ Rule:</span> Export all outputs to Drive project folder before session close<br>
-      Manual export: <code>F:\My Drive\AI\Projects\[name]\03-artifacts\</code>
+      Manual export: <code>C:\Users\willl\My Drive\AI\Projects\[name]\03-artifacts\</code>
     </div>
   </div>
 </div>
 
-<!-- ── SECTION 6: FILE LEGEND ── -->
-<div class="section-label">⑥ Complete File Reference</div>
+<!-- ── SECTION 6: GIT & DEPLOY ── -->
+<div class="section-label">⑥ Git & Deploy Protocol <span style="font-size:9px;color:var(--accent-teal);font-weight:400;text-transform:none;letter-spacing:0">(protocols.md — BACKLOG #14)</span></div>
+
+<div class="git-deploy-section">
+  <div class="gd-panels">
+    <div>
+      <h3>Per-Tool Git Workflow</h3>
+      <table class="gd-table">
+        <thead>
+          <tr>
+            <th>Step</th>
+            <th>ClaudeCLI</th>
+            <th>ClaudeCowork</th>
+            <th>GeminiCLI</th>
+            <th>AntiGravity</th>
+            <th>AIStudio</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="step-label">git pull (start)</td>
+            <td class="yes">✅ Auto</td>
+            <td class="yes">✅ Clone fresh</td>
+            <td class="yes">✅ Auto</td>
+            <td class="yes">✅ Auto</td>
+            <td class="no">❌ Cloud</td>
+          </tr>
+          <tr>
+            <td class="step-label">git commit (work)</td>
+            <td class="yes">✅ Auto</td>
+            <td class="yes">✅ Auto</td>
+            <td class="yes">✅ Auto</td>
+            <td class="yes">✅ Auto</td>
+            <td class="no">❌</td>
+          </tr>
+          <tr>
+            <td class="step-label">git push (close)</td>
+            <td class="yes">✅ Approval</td>
+            <td class="yes">✅ PAT</td>
+            <td class="yes">✅ Approval</td>
+            <td class="yes">✅ Approval</td>
+            <td class="no">❌</td>
+          </tr>
+          <tr>
+            <td class="step-label">Deploy trigger</td>
+            <td class="yes">Via push</td>
+            <td class="yes">Via push</td>
+            <td class="yes">Via push</td>
+            <td class="yes">Via push</td>
+            <td class="no">❌</td>
+          </tr>
+          <tr>
+            <td class="step-label">Auth method</td>
+            <td class="na">Native</td>
+            <td class="na">PAT file</td>
+            <td class="na">Native</td>
+            <td class="na">Native</td>
+            <td class="na">N/A</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Per-Project Deploy Matrix</h3>
+      <table class="gd-table">
+        <thead>
+          <tr>
+            <th>Project</th>
+            <th>GitHub Repo</th>
+            <th>Deploy Mechanism</th>
+            <th>Trigger</th>
+            <th>Live URL</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="step-label">hub-webapp</td>
+            <td><code>3pmo/hub-webapp</code></td>
+            <td class="yes">GitHub Actions → Firebase</td>
+            <td>Push to <code>master</code></td>
+            <td><a href="https://ecosystem-hub-3pmo.web.app" style="color:var(--accent-blue)">ecosystem-hub-3pmo.web.app</a></td>
+          </tr>
+          <tr>
+            <td class="step-label">m4p-model</td>
+            <td><code>3pmo/m4p-model</code></td>
+            <td class="na">None (local only)</td>
+            <td class="na">N/A</td>
+            <td class="na">N/A</td>
+          </tr>
+          <tr>
+            <td class="step-label">improve-workflow</td>
+            <td class="na">N/A (Drive)</td>
+            <td class="na">Manual copy → hub-webapp</td>
+            <td class="na">hub-webapp push</td>
+            <td class="na">Via hub-webapp</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div>
+      <div class="gd-contrib-box">
+        <strong>🚀 Who Can Deploy to hub-webapp?</strong>
+        <ul>
+          <li><span class="tool-yes">✅ ClaudeCLI</span> — native git push</li>
+          <li><span class="tool-yes">✅ ClaudeCowork</span> — PAT-based push</li>
+          <li><span class="tool-yes">✅ GeminiCLI</span> — native git push</li>
+          <li><span class="tool-yes">✅ AntiGravity</span> — native git push</li>
+          <li><span class="tool-no">❌ AIStudio</span> — no local git access</li>
+        </ul>
+        <div style="margin-top:8px;font-size:10px;color:var(--text-dim);border-top:1px solid var(--card-border);padding-top:6px">
+          <strong style="color:var(--text)">Rule:</strong> Push to <code>master</code> auto-deploys via GitHub Actions (~40s). No manual <code>firebase deploy</code> needed.
+        </div>
+        <div style="margin-top:8px;font-size:10px;color:var(--text-dim);border-top:1px solid var(--card-border);padding-top:6px">
+          <strong style="color:var(--text)">Template hooks:</strong><br>
+          • <code>CONTINUE-PROJECT</code> → <code>git pull</code> before work<br>
+          • <code>CLOSE-SESSION</code> → <code>git push</code> + deploy verify
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SECTION 7: FILE LEGEND ── -->
+<div class="section-label">⑦ Complete File Reference</div>
 
 <div class="legend-section">
   <div class="legend-grid">
@@ -800,7 +977,7 @@
       <span class="legend-icon">📋</span>
       <div>
         <div class="legend-name">SESSION-CARD.md</div>
-        <div class="legend-path">_System/ (proposed)</div>
+        <div class="legend-path">_System/</div>
         <div class="legend-desc">~50L slim bootstrap · replaces 3-file upfront read · per-tool table · active projects</div>
       </div>
     </div>
@@ -826,7 +1003,7 @@
     <div class="legend-item">
       <span class="legend-icon">🎨</span>
       <div>
-        <div class="legend-name">3PMO_BRAND.md</div>
+        <div class="legend-name">BRAND.md</div>
         <div class="legend-path">_System/</div>
         <div class="legend-desc">Work &amp; 3PMO themes · Only read when producing visual output</div>
       </div>
