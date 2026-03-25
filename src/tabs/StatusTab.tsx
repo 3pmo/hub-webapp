@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import projectsData from '../assets/projects.json';
+import { formatDate } from '../utils/formatDate';
 
 interface Project {
   name: string;
@@ -121,7 +122,7 @@ export default function StatusTab() {
               </div>
 
               <div className="project-meta">
-                {p.last_active && <span>🕐 {p.last_active}</span>}
+                {p.last_active && <span>🕐 {formatDate(p.last_active)}</span>}
                 {p.current_ai && <span>🤖 {p.current_ai}</span>}
                 {p.github && (
                   <a href={`https://github.com/3pmo/${p.github.replace(/`/g,'')}`} target="_blank" rel="noreferrer"
