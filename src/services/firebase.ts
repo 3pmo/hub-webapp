@@ -6,7 +6,7 @@ import { getAuth } from 'firebase/auth';
 // ROLLBACK: revert to thought-organizer-79aff config below if needed
 // Old config: { projectId: "thought-organizer-79aff", databaseURL: "https://thought-organizer-79aff-default-rtdb.europe-west1.firebasedatabase.app", ... }
 const firebaseConfig = {
-  apiKey: "import.meta.env.VITE_FIREBASE_API_KEY",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: "hub-3pmo.firebaseapp.com",
   databaseURL: "https://hub-3pmo-default-rtdb.firebaseio.com",
   projectId: "hub-3pmo",

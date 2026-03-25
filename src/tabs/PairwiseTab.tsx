@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { db, auth } from '../services/firebase';
 import { ref, push, onValue, off, set } from 'firebase/database';
+import type { DataSnapshot } from 'firebase/database';
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import type { User } from 'firebase/auth';
 
 interface PairwiseItem {
   id: string;
@@ -41,7 +43,7 @@ function getPairs(items: PairwiseItem[]) {
 }
 
 export default function PairwiseTab() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
@@ -54,7 +56,7 @@ export default function PairwiseTab() {
   const dbPathRef = useRef('');
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
+    const unsub = onAuthStateChanged(auth, (u: User | null) => {
       setUser(u);
       dbPathRef.current = u ? `pairwise_analyses/${u.uid}` : '';
     });
@@ -64,7 +66,7 @@ export default function PairwiseTab() {
   useEffect(() => {
     if (!user) { setAnalyses([]); return; }
     const r = ref(db, `pairwise_analyses/${user.uid}`);
-    onValue(r, (snap) => {
+    onValue(r, (snap: DataSnapshot) => {
       const data = snap.val();
       if (!data) { setAnalyses([]); return; }
       const list = Object.entries(data).map(([id, v]: [string, any]) => ({ id, ...v })) as Analysis[];
@@ -82,7 +84,7 @@ export default function PairwiseTab() {
   };
 
   const createAnalysis = async () => {
-    if (!newTitle.trim() || !newItems.trim()) return;
+    if (!newTitle.trim() || !newItems.trim() || !user) return;
     const items: PairwiseItem[] = newItems.split('\n')
       .map(l => l.trim()).filter(Boolean)
       .map((label, i) => ({ id: `item_${i}_${Date.now()}`, label, score: 0 }));

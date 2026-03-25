@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { db, auth } from '../services/firebase';
 import { ref, push, set, onValue, off, remove } from 'firebase/database';
+import type { DataSnapshot } from 'firebase/database';
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import type { User } from 'firebase/auth';
 
 type ThoughtStatus = 'Idea' | 'Started' | 'Published' | 'Finished';
 type ThoughtType = 'Task' | 'Project' | 'Learning' | 'Decision';
@@ -36,7 +38,7 @@ const CATEGORY_COLORS: Record<ThoughtCategory, string> = {
 const STATUS_ORDER: Record<ThoughtStatus, number> = { Idea: 0, Started: 1, Published: 2, Finished: 3 };
 
 export default function OrganizerTab() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
@@ -54,14 +56,14 @@ export default function OrganizerTab() {
   });
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
+    const unsub = onAuthStateChanged(auth, (u: User | null) => setUser(u));
     return () => unsub();
   }, []);
 
   useEffect(() => {
     if (!user) { setThoughts([]); return; }
     const thoughtsRef = ref(db, 'thoughts');
-    onValue(thoughtsRef, (snap) => {
+    onValue(thoughtsRef, (snap: DataSnapshot) => {
       const data = snap.val();
       if (!data) { setThoughts([]); return; }
       const list = Object.entries(data).map(([id, v]: [string, any]) => ({ id, ...v })) as Thought[];
