@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import './App.css';
+import { formatDateTime } from './utils/formatDate';
 import StatusTab from './tabs/StatusTab';
 import WorkflowTab from './tabs/WorkflowTab';
 import OrganizerTab from './tabs/OrganizerTab';
@@ -103,7 +104,7 @@ export default function App() {
           </div>
         </div>
         <footer className="app-footer" style={{ borderTop: '1px solid var(--border-subtle)', padding: '1rem 2rem', color: 'var(--pmo-gold)', textAlign: 'center', fontSize: '0.85rem' }}>
-          Last synced: {new Date(syncMeta.last_sync).toLocaleString()} · To refresh, run <code>npm run build</code> locally, commit, and push.
+          Last synced: {formatDateTime(syncMeta.last_sync)} · To refresh, run <code>npm run build</code> locally, commit, and push.
         </footer>
       </main>
     </div>

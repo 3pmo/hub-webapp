@@ -18,7 +18,7 @@ const STATUS_COLOR: Record<string, string> = {
   'Active': '#7CC170',
   'Standing': '#FF9E1B',
   'Deployed': '#c4ff61',
-  'Active Tab': '#6bcfff',
+  'Active Tab': '#469CBE',
   'Initiating': '#aaaaaa',
 };
 

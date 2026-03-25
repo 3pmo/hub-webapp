@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { initGoogleAPI, handleAuthClick, fetchTasks } from '../services/googleTasks';
+import { formatDate } from '../utils/formatDate';
 
 export default function ToDoTab() {
   const [tasks, setTasks] = useState<any[]>([]);
@@ -45,7 +46,7 @@ export default function ToDoTab() {
                 <li key={t.id} style={{ marginBottom: '0.5rem' }}>
                   <span style={{ color: 'var(--pmo-green)', fontWeight: 'bold', marginRight: '8px' }}>[{t.listName}]</span>
                   {t.title}
-                  {t.due && <div style={{ fontSize: '0.8em', color: 'var(--pmo-gold)' }}>Due: {new Date(t.due).toLocaleDateString()}</div>}
+                  {t.due && <div style={{ fontSize: '0.8em', color: 'var(--pmo-gold)' }}>Due: {formatDate(t.due)}</div>}
                 </li>
               ))}
             </ul>

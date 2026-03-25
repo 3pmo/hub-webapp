@@ -32,7 +32,7 @@ function calcPriority(impact: number, effort: number, urgency: number) {
 }
 
 const CATEGORY_COLORS: Record<ThoughtCategory, string> = {
-  Personal: '#7CC170', Work: '#FF9E1B', Opportunities: '#c4ff61', Family: '#6bcfff',
+  Personal: '#7CC170', Work: '#FF9E1B', Opportunities: '#c4ff61', Family: '#469CBE',
 };
 
 const STATUS_ORDER: Record<ThoughtStatus, number> = { Idea: 0, Started: 1, Published: 2, Finished: 3 };

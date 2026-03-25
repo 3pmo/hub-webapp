@@ -20,6 +20,7 @@ h1, h2, h3, h4 {
 }
 h1 { color: var(--pmo-green); }
 h2 { color: var(--pmo-gold); }
+h3 { color: var(--pmo-green); }
 
 /* =========================================================================
    2. Printable Theme Toggle (.theme-printable)
@@ -110,7 +111,7 @@ h2 { color: var(--pmo-gold); }
   background-color: var(--bg-card); border: 1px solid var(--border-subtle); color: var(--pmo-grey); border-radius: var(--radius-pill);
   padding: 0.5rem 1.5rem; font-size: 0.9rem; cursor: pointer; font-weight: bold; transition: all var(--transition-fast);
 }
-.theme-toggle-btn:hover { background-color: var(--bg-hover); color: var(--text-primary); }
+.theme-toggle-btn:hover { background-color: var(--bg-hover); color: var(--text-primary); transform: translateY(-2px); box-shadow: var(--shadow-gold-glow); }
 
 .app-content-wrapper { padding: 2rem; max-width: 1400px; margin: 0 auto; width: 100%; }
 .tab-panel { animation: fadeIn 0.3s ease; }
@@ -165,7 +166,7 @@ h2 { color: var(--pmo-gold); }
 .org-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg); }
 .auth-badge { background: var(--bg-elevated); padding: 0.5rem 1rem; border-radius: var(--radius-pill); font-size: 0.85rem; border: 1px solid var(--border-subtle); }
 .sign-out-btn { background: transparent; color: var(--pmo-gold); border: 1px solid var(--pmo-gold); padding: 0.3rem 1rem; border-radius: var(--radius-pill); cursor: pointer; margin-left: var(--space-md); }
-.sign-out-btn:hover { background: var(--pmo-gold); color: var(--ultra-dark-bg); }
+.sign-out-btn:hover { background: var(--pmo-gold); color: var(--ultra-dark-bg); transform: translateY(-2px); box-shadow: var(--shadow-gold-glow); }
 
 .org-capture { background: var(--bg-elevated); padding: var(--space-lg); border-radius: var(--radius-lg); border: 1px solid var(--border-subtle); margin-bottom: var(--space-xl); }
 .capture-form { display: flex; flex-direction: column; gap: var(--space-md); }
@@ -187,7 +188,8 @@ h2 { color: var(--pmo-gold); }
 .org-filters { display: flex; gap: var(--space-md); margin-bottom: var(--space-md); flex-wrap: wrap; }
 .filter-group { display: flex; gap: var(--space-sm); align-items: center; }
 .filter-label { font-size: var(--text-sm); color: var(--pmo-grey); }
-.filter-btn { background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-secondary); padding: 4px 12px; border-radius: var(--radius-pill); cursor: pointer; font-size: 0.85rem; }
+.filter-btn { background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-secondary); padding: 4px 12px; border-radius: var(--radius-pill); cursor: pointer; font-size: 0.85rem; transition: all var(--transition-fast); }
+.filter-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-gold-glow); color: var(--pmo-gold); border-color: var(--pmo-gold); }
 .filter-btn.active { background: rgba(124,193,112,0.2); color: var(--pmo-green); border-color: var(--pmo-green); }
 
 .thought-count { color: var(--pmo-grey); font-size: 0.85rem; margin-bottom: var(--space-md); }

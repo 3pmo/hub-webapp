@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { db, auth } from '../services/firebase';
+import { formatDate } from '../utils/formatDate';
 import { ref, push, onValue, off, set } from 'firebase/database';
 import type { DataSnapshot } from 'firebase/database';
 import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'firebase/auth';
@@ -152,7 +153,7 @@ export default function PairwiseTab() {
             {analyses.map(a => (
               <div key={a.id} className="card pw-card" onClick={() => { setActive(a); setPairIdx(0); setView('compare'); }}>
                 <div className="pw-card-title">{a.title}</div>
-                <div className="pw-card-meta">{a.items.length} items · {new Date(a.createdAt).toLocaleDateString()}</div>
+                <div className="pw-card-meta">{a.items.length} items · {formatDate(a.createdAt)}</div>
                 <div className="pw-card-actions">
                   <button onClick={e => { e.stopPropagation(); setActive(a); setView('results'); }}>Results</button>
                   <button className="cancel-btn" onClick={e => { e.stopPropagation(); setActive(a); setPairIdx(0); setView('compare'); }}>Compare</button>

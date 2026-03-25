@@ -7,17 +7,17 @@ export default function ArchitectureTab() {
         </p>
       </div>
 
-      <div className="diagram-container card" style={{ padding: '1rem', background: '#fff', borderRadius: '8px', overflow: 'hidden', textAlign: 'center' }}>
-        <h4 style={{ color: '#333', marginBottom: '1rem' }}>System Architecture Diagram</h4>
-        <img 
-          src="/3pmo-hub-architecture-diagram.png" 
-          alt="3PMO-Hub System Architecture" 
+      <div className="diagram-container card" style={{ overflow: 'hidden', textAlign: 'center' }}>
+        <h4 style={{ color: 'var(--pmo-slate)', marginBottom: '1rem' }}>System Architecture Diagram</h4>
+        <img
+          src="/3pmo-hub-architecture-diagram.png"
+          alt="3PMO-Hub System Architecture"
           style={{ maxWidth: '100%', height: 'auto', display: 'block', margin: '0 auto' }}
           onError={(e) => {
             e.currentTarget.style.display = 'none';
           }}
         />
-        <div className="diagram-fallback" style={{ fontSize: '0.8rem', color: '#666', marginTop: '1rem' }}>
+        <div className="diagram-fallback" style={{ fontSize: '0.8rem', color: 'var(--pmo-grey)', marginTop: '1rem' }}>
           Architecture: ⚛️ React/Vite SPA ↔ ☁️ Firebase RTDB ↔ 🌐 Google Tasks API
         </div>
       </div>
