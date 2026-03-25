@@ -74,8 +74,15 @@ export default function OrganizerTab() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
-    try { await signInWithPopup(auth, new GoogleAuthProvider()); }
-    catch (err: any) { setAuthError('Google Sign-In failed or was cancelled.'); }
+    console.log("[Organizer] Starting Google Sign-In Popup...");
+    try { 
+      const res = await signInWithPopup(auth, new GoogleAuthProvider()); 
+      console.log("[Organizer] Sign-In Success:", res.user.email);
+    }
+    catch (err: any) { 
+      console.error("[Organizer] Sign-In Error:", err);
+      setAuthError(`Google Sign-In failed: ${err.message || 'Check Console'}`); 
+    }
   };
 
   const startListening = () => {

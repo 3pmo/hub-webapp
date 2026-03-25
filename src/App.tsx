@@ -22,6 +22,10 @@ export default function App() {
     else document.documentElement.classList.remove('theme-printable');
   }, [isPrintable]);
 
+  const handleManualPrint = () => {
+    window.print();
+  };
+
   const getTabTitle = (tab: Tab) => {
     switch (tab) {
       case 'status': return 'Project Status';
@@ -84,8 +88,11 @@ export default function App() {
         <header className="header">
           <h2 className="header-title">{getTabTitle(activeTab)}</h2>
           <div className="header-actions">
+            <button className="theme-toggle-btn" onClick={handleManualPrint} style={{ marginRight: '8px' }}>
+              🖨 Print Current View
+            </button>
             <button className="theme-toggle-btn" onClick={() => setIsPrintable(!isPrintable)}>
-              {isPrintable ? '🌙 Dark Mode' : '🖨 Printable Theme'}
+              {isPrintable ? '🌙 Dark Mode' : '📄 Printable Theme'}
             </button>
           </div>
         </header>

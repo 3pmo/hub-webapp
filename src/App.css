@@ -290,4 +290,48 @@ h2 { color: var(--pmo-gold); }
 }
 .theme-printable .architecture-tab .diagram-container { box-shadow: none; border: 1px solid #eee; }
 
-@media print { .sidebar, .header, .brand-area, .theme-toggle-btn, .app-footer, .nav-menu { display: none !important; } .main-content { margin-left: 0 !important; } .app-container { background: white !important; } .app-content-wrapper { padding: 0 !important; max-width: none !important; } }
+@media print {
+  /* Hide every UI wrapper */
+  navigation, aside, .sidebar, .header, .brand-area, .theme-toggle-btn, .app-footer, .nav-menu, .header-actions { 
+    display: none !important; 
+    visibility: hidden !important;
+    height: 0 !important;
+    width: 0 !important;
+    overflow: hidden !important;
+  }
+  
+  /* Reset main content container */
+  .main-content { 
+    margin-left: 0 !important; 
+    padding: 0 !important;
+    display: block !important;
+    width: 100% !important;
+    position: static !important;
+  }
+  
+  .app-container { 
+    display: block !important;
+    background: white !important; 
+  }
+  
+  .app-content-wrapper { 
+    padding: 0 !important; 
+    margin: 0 !important;
+    max-width: none !important; 
+    width: 100% !important;
+  }
+
+  .tab-panel {
+    transform: none !important;
+    animation: none !important;
+  }
+
+  /* Force white background for all cards in print */
+  .card, .stat-card, .project-card, .cost-card {
+    background: white !important;
+    color: black !important;
+    border: 1px solid #eee !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+}
