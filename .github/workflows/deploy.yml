@@ -21,6 +21,7 @@ jobs:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
         run: |
+          echo "{\"last_sync\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"}" > src/assets/sync-meta.json
           npm ci
           npm run build
 
