@@ -17,6 +17,7 @@ type Tab = 'status' | 'workflow' | 'organizer' | 'pairwise' | 'todo' | 'brand' |
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('status');
   const [isPrintable, setIsPrintable] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (isPrintable) document.documentElement.classList.add('theme-printable');
@@ -39,7 +40,7 @@ export default function App() {
   return (
     <div className="app-container">
       {/* ── Left Sidebar ── */}
-      <aside className="sidebar">
+      <aside className={`sidebar${sidebarOpen ? ' sidebar-open' : ''}`}>
         <div className="brand-area">
           <img src="/3PMO_Logo.png" alt="3PMO Logo" className="logo-img"
             onError={e => { e.currentTarget.style.display = 'none'; }} />
@@ -79,10 +80,12 @@ export default function App() {
           </button>
         </nav>
       </aside>
+      <div className={`sidebar-overlay${sidebarOpen ? ' visible' : ''}`} onClick={() => setSidebarOpen(false)} />
 
       {/* ── Main Content ── */}
       <main className="main-content">
         <header className="header">
+          <button className="hamburger-btn" onClick={() => setSidebarOpen(s => !s)} aria-label="Toggle menu">☰</button>
           <h2 className="header-title">{getTabTitle(activeTab)}</h2>
           <div className="header-actions">
             <button className="theme-toggle-btn" onClick={() => setIsPrintable(!isPrintable)}>
