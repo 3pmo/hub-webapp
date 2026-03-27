@@ -45,11 +45,6 @@ export default function StatusTab() {
     return matchSearch && matchStatus;
   });
 
-  const handleCopy = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    alert(`Copied ${label} path: ${text}`);
-  };
-
   return (
     <div className="status-tab">
       <div className="tab-section-header">
@@ -101,21 +96,14 @@ export default function StatusTab() {
                 )}
               </div>
               {p.description && <p className="project-desc">{p.description}</p>}
-              
-              <div className="project-meta-links">
-                                  ) : (
-                    <button className="path-copy-btn" onClick={() => handleCopy(p.drive!, 'Drive')} title={p.drive}>
-                      ☁ Copy Drive Path
-                    </button>
-                  )
-                )}
-              </div>
 
               <div className="project-meta">
                 {p.last_active && <span>🕐 {formatDate(p.last_active)}</span>}
                 {p.current_ai && <span>🤖 {p.current_ai}</span>}
-                {p.drive?.startsWith('http') && (<a className="meta-link" href={p.drive} target="_blank">☁ Drive</a>)}
-              {p.github && (
+                {p.drive?.startsWith('http') && (
+                  <a className="meta-link" href={p.drive} target="_blank" rel="noreferrer">☁ Drive</a>
+                )}
+                {p.github && (
                   <a href={`https://github.com/${p.github.replace(/`/g,'')}`} target="_blank" rel="noreferrer"
                     className="meta-link">⎇ GitHub</a>
                 )}
