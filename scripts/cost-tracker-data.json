@@ -1,0 +1,19 @@
+{
+  "slug": "cost-tracker",
+  "name": "cost-tracker",
+  "category": "tab",
+  "status": "Active Tab",
+  "description": "Track and display AI token usage and associated costs across Claude and Gemini, including API integration, real-time gauges, and usage history.",
+  "current_ai": "ClaudeCowork",
+  "drive_path": "C:\\Users\\willl\\My Drive\\AI\\Projects\\cost-tracker\\",
+  "local_path": null,
+  "github_repo": null,
+  "deploy_method": null,
+  "backlog_bugs": 3,
+  "backlog_enhancements": 0,
+  "parent_project_id": "3pmo-hub",
+  "tags": [],
+  "notes": null,
+  "last_active": "2026-03-28",
+  "created_at": "2026-03-28"
+}

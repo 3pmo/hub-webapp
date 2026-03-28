@@ -144,6 +144,22 @@
     "category": "active"
   },
   {
+    "name": "cost-tracker",
+    "status": "Active Tab",
+    "description": "Track and display AI token usage and associated costs across Claude and Gemini, including API integration, real-time gauges, and usage history.",
+    "current_ai": "ClaudeCowork",
+    "last_active": "2026-03-28",
+    "github": null,
+    "drive": "C:\\Users\\willl\\My Drive\\AI\\Projects\\cost-tracker\\",
+    "local": null,
+    "deploy": "GitHub Actions → Firebase (inherited from 3pmo-hub)",
+    "backlog": "🐛 3 Bugs | 🚀 0 Enhancements",
+    "active_item": null,
+    "parent_project_id": "3pmo-hub",
+    "tags": [],
+    "category": "tab"
+  },
+  {
     "name": "pairwise",
     "status": "Active Tab",
     "description": "Web application for pairwise analysis, integrated as a new tab on 3pmo-hub.",
