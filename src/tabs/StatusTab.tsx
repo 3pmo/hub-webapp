@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import projectsData from '../assets/projects.json';
+import { formatDate } from '../utils/formatDate';
 
 interface Project {
   name: string;
@@ -18,7 +19,7 @@ const STATUS_COLOR: Record<string, string> = {
   'Active': '#7CC170',
   'Standing': '#FF9E1B',
   'Deployed': '#c4ff61',
-  'Active Tab': '#6bcfff',
+  'Active Tab': '#469CBE',
   'Initiating': '#aaaaaa',
 };
 
@@ -43,11 +44,6 @@ export default function StatusTab() {
     const matchStatus = filterStatus === 'All' || p.status === filterStatus;
     return matchSearch && matchStatus;
   });
-
-  const handleCopy = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    alert(`Copied ${label} path: ${text}`);
-  };
 
   return (
     <div className="status-tab">
@@ -100,31 +96,15 @@ export default function StatusTab() {
                 )}
               </div>
               {p.description && <p className="project-desc">{p.description}</p>}
-              
-              <div className="project-meta-links">
-                {p.drive && (
-                  p.drive.startsWith('http') ? (
-                    <a href={p.drive} target="_blank" rel="noreferrer" className="path-copy-btn" title="Open in Google Drive" style={{textDecoration: 'none'}}>
-                      ☁ Open Drive Folder
-                    </a>
-                  ) : (
-                    <button className="path-copy-btn" onClick={() => handleCopy(p.drive!, 'Drive')} title={p.drive}>
-                      ☁ Copy Drive Path
-                    </button>
-                  )
-                )}
-                {p.local && p.local.includes('C:') && (
-                  <button className="path-copy-btn" onClick={() => handleCopy(p.local!, 'Local')} title={p.local}>
-                    💻 Copy Local Path
-                  </button>
-                )}
-              </div>
 
               <div className="project-meta">
-                {p.last_active && <span>🕐 {p.last_active}</span>}
+                {p.last_active && <span>🕐 {formatDate(p.last_active)}</span>}
                 {p.current_ai && <span>🤖 {p.current_ai}</span>}
+                {p.drive?.startsWith('http') && (
+                  <a className="meta-link" href={p.drive} target="_blank" rel="noreferrer">☁ Drive</a>
+                )}
                 {p.github && (
-                  <a href={`https://github.com/3pmo/${p.github.replace(/`/g,'')}`} target="_blank" rel="noreferrer"
+                  <a href={`https://github.com/${p.github.replace(/`/g,'')}`} target="_blank" rel="noreferrer"
                     className="meta-link">⎇ GitHub</a>
                 )}
               </div>

@@ -2166,6 +2166,21 @@
 
     <script>
         // ==========================================
+        // BRAND DATE FORMATTING UTILS
+        // ==========================================
+        // 3PMO standard: DD MMM YY (e.g. 25 Mar 26)
+        // Date-only ISO strings are parsed as local midnight to avoid UTC-offset issues.
+        const _BRAND_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        function fmtDate(v) {
+            if (!v) return '—';
+            const s = String(v);
+            const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(v);
+            if (isNaN(d.getTime())) return s;
+            return d.getDate().toString().padStart(2, '0') + ' ' + _BRAND_MONTHS[d.getMonth()] + ' ' + d.getFullYear().toString().slice(2);
+        }
+
+        // ==========================================
         // FIREBASE AUTHENTICATION
         // ==========================================
         let isSignUpMode = false;
@@ -3639,7 +3654,7 @@
                     <td>${parentCell}</td>
                     <td><span class="status-type-badge ${typeClass}">${p.type === 'hub-tab' ? 'Tab' : 'Standalone'}</span></td>
                     <td><span class="status-badge ${statusClass}">${esc(p.status) || 'Active'}</span></td>
-                    <td>${esc(p.lastActive) || '—'}</td>
+                    <td>${fmtDate(p.lastActive)}</td>
                     <td>${aiCell}</td>
                     <td style="text-align:center">${bugsCell}</td>
                     <td style="text-align:center">${enhCell}</td>
@@ -4284,7 +4299,7 @@
             let csv = '';
             csv += 'Pairwise Analysis Results\n';
             csv += 'Mode,' + (pwState.mode === 'team' ? 'Team' : 'Personal') + '\n';
-            csv += 'Date,' + new Date().toLocaleDateString() + '\n';
+            csv += 'Date,' + fmtDate(new Date()) + '\n';
             csv += 'Consistency Ratio,' + (consistency.ratio * 100).toFixed(2) + '%\n';
             csv += 'Consistency Status,' + (consistency.isConsistent ? 'Consistent' : 'Inconsistent') + '\n\n';
 
@@ -4732,7 +4747,7 @@
                 Object.entries(data).reverse().forEach(([key, analysis]) => {
                     const opt = document.createElement('option');
                     opt.value = key;
-                    opt.textContent = analysis.name + ' (' + new Date(analysis.updatedAt).toLocaleDateString() + ')';
+                    opt.textContent = analysis.name + ' (' + fmtDate(analysis.updatedAt) + ')';
                     select.appendChild(opt);
                 });
             } catch (e) {
