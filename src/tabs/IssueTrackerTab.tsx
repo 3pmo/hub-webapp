@@ -41,10 +41,10 @@ export default function IssueTrackerTab() {
   const [formData, setFormData] = useState<Partial<Issue>>({
     title: '',
     description: '',
-    project_slug: 'improve-workflow',
+    project_slug: '',
     type: 'enhancement',
-    priority: 'P2',
-    status: 'New',
+    priority: 'P4',
+    status: 'Open',
     test_unit: '⬜',
     test_sit: '⬜',
     test_uat: '⬜'
@@ -63,11 +63,9 @@ export default function IssueTrackerTab() {
     return () => unsubscribe();
   }, []);
 
-  // Filter Logic
-  const filteredIssues = issues.filter(iss => {
+  // Pre-type-filter: used for stat tile counts (project + status only)
+  const preTypeFiltered = issues.filter(iss => {
     if (filterProject !== 'All' && iss.project_slug !== filterProject) return false;
-    if (filterType !== 'All' && iss.type !== filterType) return false;
-    
     if (filterStatus === 'Open') {
       if (['Done', 'Closed', 'Parked'].includes(iss.status)) return false;
     } else if (filterStatus !== 'All' && iss.status !== filterStatus) {
@@ -76,12 +74,21 @@ export default function IssueTrackerTab() {
     return true;
   });
 
+  // Full filter (including type)
+  const filteredIssues = preTypeFiltered.filter(iss => {
+    if (filterType !== 'All' && iss.type !== filterType) return false;
+    return true;
+  });
+
+  // Stat tile counts (from pre-type-filter so counts are always visible)
+  const bugCount = preTypeFiltered.filter(i => i.type === 'bug').length;
+  const enhCount = preTypeFiltered.filter(i => i.type === 'enhancement').length;
+
   // Sort Logic
   const sortedIssues = [...filteredIssues].sort((a, b) => {
     let valA: any = a[sortField] || '';
     let valB: any = b[sortField] || '';
 
-    // Handle Timestamps
     if (sortField === 'updated_at') {
       valA = a.updated_at?.toMillis ? a.updated_at.toMillis() : Date.now();
       valB = b.updated_at?.toMillis ? b.updated_at.toMillis() : Date.now();
@@ -100,10 +107,10 @@ export default function IssueTrackerTab() {
     setFormData({
       title: '',
       description: '',
-      project_slug: projects[0]?.name || '3pmo-hub',
+      project_slug: '',      // E2: null — user must select
       type: 'enhancement',
-      priority: 'P2',
-      status: 'New',
+      priority: 'P4',        // E2: default P4
+      status: 'Open',        // E2: default Open
       test_unit: '⬜',
       test_sit: '⬜',
       test_uat: '⬜'
@@ -127,7 +134,7 @@ export default function IssueTrackerTab() {
     const data = {
       ...formData,
       updated_at: serverTimestamp(),
-      updated_by: 'user' // Should ideally pull from auth
+      updated_by: 'user'
     };
 
     try {
@@ -151,9 +158,9 @@ export default function IssueTrackerTab() {
 
   const getStatusClass = (status: string) => {
     if (['Closed', 'Done'].includes(status)) return 'success';
-    if (['New', 'Parked'].includes(status)) return 'inactive'; // Grey
-    if (['In Progress', 'In Review'].includes(status)) return 'warning'; // Gold
-    return 'danger'; // Open / etc
+    if (['New', 'Parked'].includes(status)) return 'inactive';
+    if (['In Progress', 'In Review'].includes(status)) return 'warning';
+    return 'danger';
   };
 
   if (loading) return <div className="loading">Loading Issues...</div>;
@@ -169,6 +176,62 @@ export default function IssueTrackerTab() {
         </button>
       </div>
 
+      {/* ── E1: Stat Tiles ── */}
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <button
+          onClick={() => setFilterType('All')}
+          style={{
+            flex: '1 1 120px',
+            padding: '0.75rem 1rem',
+            background: filterType === 'All' ? 'var(--pmo-gold)' : 'var(--bg-card)',
+            color: filterType === 'All' ? '#000' : 'var(--text-primary)',
+            border: `1px solid ${filterType === 'All' ? 'var(--pmo-gold)' : 'var(--border-subtle)'}`,
+            borderRadius: '6px',
+            cursor: 'pointer',
+            textAlign: 'left' as const,
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <div style={{ fontSize: '1.6rem', fontWeight: 'bold', lineHeight: 1 }}>{preTypeFiltered.length}</div>
+          <div style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: '2px' }}>Total</div>
+        </button>
+        <button
+          onClick={() => setFilterType(filterType === 'bug' ? 'All' : 'bug')}
+          style={{
+            flex: '1 1 120px',
+            padding: '0.75rem 1rem',
+            background: filterType === 'bug' ? '#ff475720' : 'var(--bg-card)',
+            color: filterType === 'bug' ? '#ff4757' : 'var(--text-primary)',
+            border: `1px solid ${filterType === 'bug' ? '#ff4757' : 'var(--border-subtle)'}`,
+            borderRadius: '6px',
+            cursor: 'pointer',
+            textAlign: 'left' as const,
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <div style={{ fontSize: '1.6rem', fontWeight: 'bold', lineHeight: 1 }}>{bugCount}</div>
+          <div style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: '2px' }}>🐛 Bugs</div>
+        </button>
+        <button
+          onClick={() => setFilterType(filterType === 'enhancement' ? 'All' : 'enhancement')}
+          style={{
+            flex: '1 1 120px',
+            padding: '0.75rem 1rem',
+            background: filterType === 'enhancement' ? 'var(--pmo-green, #7CC17020)' : 'var(--bg-card)',
+            color: filterType === 'enhancement' ? 'var(--pmo-green, #7CC170)' : 'var(--text-primary)',
+            border: `1px solid ${filterType === 'enhancement' ? 'var(--pmo-green, #7CC170)' : 'var(--border-subtle)'}`,
+            borderRadius: '6px',
+            cursor: 'pointer',
+            textAlign: 'left' as const,
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <div style={{ fontSize: '1.6rem', fontWeight: 'bold', lineHeight: 1 }}>{enhCount}</div>
+          <div style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: '2px' }}>🚀 Enhancements</div>
+        </button>
+      </div>
+
+      {/* ── Filters ── */}
       <div className="card" style={{ padding: '1.25rem', marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <label style={{ fontSize: '0.85rem', color: 'var(--pmo-slate)', fontWeight: 'bold' }}>Project</label>
@@ -243,8 +306,8 @@ export default function IssueTrackerTab() {
                   </span>
                 </td>
                 <td style={{
-                     color: issue.priority === 'P0' ? '#ff4757' : 
-                            issue.priority === 'P1' ? 'var(--pmo-gold)' : 
+                     color: issue.priority === 'P0' ? '#ff4757' :
+                            issue.priority === 'P1' ? 'var(--pmo-gold)' :
                             'var(--text-primary)',
                      fontWeight: ['P0','P1'].includes(issue.priority) ? 'bold' : 'normal'
                 }}>
@@ -283,20 +346,21 @@ export default function IssueTrackerTab() {
               <div className="form-row">
                 <div style={{ flex: 2 }}>
                   <label className="slider-label">Project</label>
-                  <select 
-                    className="field-select" 
-                    value={formData.project_slug} 
+                  <select
+                    className="field-select"
+                    value={formData.project_slug}
                     onChange={e => setFormData(f => ({ ...f, project_slug: e.target.value }))}
                     required
                   >
+                    <option value="" disabled>Select project...</option>
                     {projects.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
                   </select>
                 </div>
                 <div style={{ flex: 1 }}>
                   <label className="slider-label">Type</label>
-                  <select 
-                    className="field-select" 
-                    value={formData.type} 
+                  <select
+                    className="field-select"
+                    value={formData.type}
                     onChange={e => setFormData(f => ({ ...f, type: e.target.value as any }))}
                   >
                     <option value="bug">Bug</option>
@@ -305,9 +369,9 @@ export default function IssueTrackerTab() {
                 </div>
                 <div style={{ flex: 1 }}>
                   <label className="slider-label">Priority</label>
-                  <select 
-                    className="field-select" 
-                    value={formData.priority} 
+                  <select
+                    className="field-select"
+                    value={formData.priority}
                     onChange={e => setFormData(f => ({ ...f, priority: e.target.value as any }))}
                   >
                     {['P0', 'P1', 'P2', 'P3', 'P4'].map(p => <option key={p} value={p}>{p}</option>)}
@@ -317,21 +381,21 @@ export default function IssueTrackerTab() {
 
               <div>
                 <label className="slider-label">Title</label>
-                <input 
-                  className="field-input" 
-                  value={formData.title} 
+                <input
+                  className="field-input"
+                  value={formData.title}
                   onChange={e => setFormData(f => ({ ...f, title: e.target.value }))}
                   placeholder="Summarize the issue..."
-                  required 
+                  required
                 />
               </div>
 
               <div>
                 <label className="slider-label">Description</label>
-                <textarea 
-                  className="field-input" 
-                  rows={4} 
-                  value={formData.description} 
+                <textarea
+                  className="field-input"
+                  rows={4}
+                  value={formData.description}
                   onChange={e => setFormData(f => ({ ...f, description: e.target.value }))}
                   placeholder="More context, expected behavior, logs..."
                 />
@@ -340,9 +404,9 @@ export default function IssueTrackerTab() {
               <div className="form-row" style={{ alignItems: 'flex-end' }}>
                 <div style={{ flex: 2 }}>
                   <label className="slider-label">Status</label>
-                  <select 
-                    className="field-select" 
-                    value={formData.status} 
+                  <select
+                    className="field-select"
+                    value={formData.status}
                     onChange={e => setFormData(f => ({ ...f, status: e.target.value as any }))}
                   >
                     {['New', 'Open', 'In Progress', 'In Review', 'Done', 'Parked', 'Closed'].map(s => (
@@ -356,9 +420,9 @@ export default function IssueTrackerTab() {
                       <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--pmo-slate)', marginBottom: '4px' }}>
                         {test.split('_')[1]}
                       </div>
-                      <button 
-                        type="button" 
-                        className="icon-btn" 
+                      <button
+                        type="button"
+                        className="icon-btn"
                         onClick={() => handleTestCycle(test)}
                         style={{ fontSize: '1.2rem', padding: '0.4rem 0.8rem', width: '45px' }}
                       >

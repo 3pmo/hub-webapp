@@ -69,6 +69,9 @@ export default function App() {
           <button className={`nav-link ${activeTab === 'cost' ? 'active' : ''}`} onClick={() => setActiveTab('cost')}>
             💰 Cost Tracker
           </button>
+          <button className={`nav-link ${activeTab === 'issues' ? 'active' : ''}`} onClick={() => setActiveTab('issues')}>
+            🎯 Issue Tracker
+          </button>
 
           <div className="nav-group-title">Thoughts</div>
           <button className={`nav-link ${activeTab === 'organizer' ? 'active' : ''}`} onClick={() => setActiveTab('organizer')}>
@@ -79,9 +82,6 @@ export default function App() {
           </button>
           <button className={`nav-link ${activeTab === 'todo' ? 'active' : ''}`} onClick={() => setActiveTab('todo')}>
             ✅ To-Do
-          </button>
-          <button className={`nav-link ${activeTab === 'issues' ? 'active' : ''}`} onClick={() => setActiveTab('issues')}>
-            🎯 Issue Tracker
           </button>
         </nav>
       </aside>
