@@ -31,20 +31,24 @@ export default function IssueTrackerTab() {
   // Filters
   const [filterProject, setFilterProject] = useState<string>('All');
   const [filterType, setFilterType] = useState<string>('All');
-  const [filterStatus, setFilterStatus] = useState<string>('Open'); // Open = Not Done/Closed/Parked
+  const [filterStatus, setFilterStatus] = useState<string>('Open'); // Open = Not Done/Parked
+  const [searchText, setSearchText] = useState('');
+  const [searchId, setSearchId] = useState('');
 
   // Sort
-  const [sortField, setSortField] = useState<'priority' | 'project_slug' | 'updated_at'>('priority');
+  const [sortField, setSortField] = useState<'status' | 'priority' | 'project_slug' | 'updated_at'>('status');
   const [sortAsc, setSortAsc] = useState(true);
 
   // Form / Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
+  const [editingDoDIdx, setEditingDoDIdx] = useState<number | null>(null);
+  const [voiceField, setVoiceField] = useState<'title' | 'description' | null>(null);
   const [formData, setFormData] = useState<Partial<Issue>>({
     title: '',
     description: '',
     project_slug: '',
-    type: 'enhancement',
+    type: undefined,
     priority: 'P4',
     status: 'Open',
     test_compile: '⬜',
@@ -53,6 +57,30 @@ export default function IssueTrackerTab() {
     test_uat: '⬜',
     dod_items: []
   });
+
+  // Voice capture using Web Speech API
+  const startVoice = (field: 'title' | 'description') => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) { alert('Voice capture not supported in this browser.'); return; }
+    const rec = new SpeechRecognition();
+    rec.lang = 'en-GB';
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    setVoiceField(field);
+    rec.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      setFormData(prev => ({
+        ...prev,
+        [field]: field === 'description'
+          ? (prev.description ? prev.description + ' ' + transcript : transcript)
+          : transcript
+      }));
+      setVoiceField(null);
+    };
+    rec.onerror = () => setVoiceField(null);
+    rec.onend = () => setVoiceField(null);
+    rec.start();
+  };
 
   useEffect(() => {
     const q = query(collection(firestore, 'issues'), orderBy('created_at', 'desc'));
@@ -71,25 +99,36 @@ export default function IssueTrackerTab() {
   const preTypeFiltered = issues.filter(iss => {
     if (filterProject !== 'All' && iss.project_slug !== filterProject) return false;
     if (filterStatus === 'Open') {
-      if (['Done', 'Closed', 'Parked'].includes(iss.status)) return false;
+      if (['Done', 'Parked'].includes(iss.status)) return false;
     } else if (filterStatus !== 'All' && iss.status !== filterStatus) {
       return false;
     }
     return true;
   });
 
-  // Full filter (including type)
+  // Full filter (including type + search)
   const filteredIssues = preTypeFiltered.filter(iss => {
     if (filterType !== 'All' && iss.type !== filterType) return false;
+    if (searchId.trim()) {
+      if (!iss.id.toLowerCase().includes(searchId.trim().toLowerCase())) return false;
+    }
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase();
+      const match = iss.title.toLowerCase().includes(q) || (iss.description || '').toLowerCase().includes(q);
+      if (!match) return false;
+    }
     return true;
   });
 
-  // Stat tile counts (from pre-type-filter so counts are always visible)
+  // Stat tile counts
   const bugCount = preTypeFiltered.filter(i => i.type === 'bug').length;
   const enhCount = preTypeFiltered.filter(i => i.type === 'enhancement').length;
 
   // Sort Logic
   const sortedIssues = [...filteredIssues].sort((a, b) => {
+    const statusOrder: Record<string, number> = { 'Open': 1, 'In Progress': 2, 'UAT': 3, 'Done': 4, 'Parked': 5 };
+    const priorityOrder: Record<string, number> = { 'P0': 1, 'P1': 2, 'P2': 3, 'P3': 4, 'P4': 5 };
+
     let valA: any = a[sortField] || '';
     let valB: any = b[sortField] || '';
 
@@ -98,9 +137,27 @@ export default function IssueTrackerTab() {
       valB = b.updated_at?.toMillis ? b.updated_at.toMillis() : Date.now();
     }
 
-    if (valA < valB) return sortAsc ? -1 : 1;
-    if (valA > valB) return sortAsc ? 1 : -1;
-    return 0;
+    let result = 0;
+    if (sortField === 'status') {
+      result = (statusOrder[valA] || 99) - (statusOrder[valB] || 99);
+    } else if (sortField === 'priority') {
+      result = (priorityOrder[valA] || 99) - (priorityOrder[valB] || 99);
+    } else if (typeof valA === 'string' && typeof valB === 'string') {
+      result = valA.localeCompare(valB);
+    } else {
+      result = valA > valB ? 1 : valA < valB ? -1 : 0;
+    }
+
+    // Secondary sort by priority
+    if (result === 0 && sortField !== 'priority') {
+      const pA = priorityOrder[a.priority as keyof typeof priorityOrder] || 99;
+      const pB = priorityOrder[b.priority as keyof typeof priorityOrder] || 99;
+      result = pA - pB;
+    }
+    // Final tie-breaker
+    if (result === 0) result = a.id.localeCompare(b.id);
+
+    return sortAsc ? result : -result;
   });
 
   // Unique projects for dropdown
@@ -108,11 +165,12 @@ export default function IssueTrackerTab() {
 
   const handleLogIssue = () => {
     setEditingIssue(null);
+    setEditingDoDIdx(null);
     setFormData({
       title: '',
       description: '',
       project_slug: '',
-      type: 'enhancement',
+      type: undefined,   // must be selected
       priority: 'P4',
       status: 'Open',
       test_compile: '⬜',
@@ -126,25 +184,30 @@ export default function IssueTrackerTab() {
 
   const handleRowClick = (issue: Issue) => {
     setEditingIssue(issue);
-    setFormData({ ...issue });
+    setEditingDoDIdx(null);
+    // Sort DoD: incomplete first
+    const sortedDoD = [...(issue.dod_items || [])].sort((a, b) => {
+      if (a.completed === b.completed) return 0;
+      return a.completed ? 1 : -1;
+    });
+    setFormData({ ...issue, dod_items: sortedDoD });
     setIsModalOpen(true);
   };
 
   const handleTestCycle = (field: 'test_compile' | 'test_dod' | 'test_sit' | 'test_uat') => {
     const cycle: Record<string, '⬜' | '✅' | 'N/A'> = { '⬜': '✅', '✅': 'N/A', 'N/A': '⬜' };
     const newValue = cycle[formData[field] || '⬜'];
-    
+
     setFormData(prev => {
       const updated = { ...prev, [field]: newValue };
-      
-      // Auto-transition logic
+      // Auto-transition: Compile ✅ → In Progress
       if (field === 'test_compile' && newValue === '✅' && prev.status === 'Open') {
         updated.status = 'In Progress';
       }
+      // Auto-transition: SIT ✅ → UAT
       if (field === 'test_sit' && newValue === '✅' && prev.status === 'In Progress') {
         updated.status = 'UAT';
       }
-      
       return updated;
     });
   };
@@ -157,14 +220,27 @@ export default function IssueTrackerTab() {
     });
   };
 
+  const handleEditDoDTask = (index: number, newTask: string) => {
+    setFormData(prev => {
+      const newItems = [...(prev.dod_items || [])];
+      newItems[index] = { ...newItems[index], task: newTask };
+      return { ...prev, dod_items: newItems };
+    });
+  };
+
   const handleAddDoD = () => {
-    const task = prompt("Enter DoD task:");
-    if (task) {
-      setFormData(prev => ({
-        ...prev,
-        dod_items: [...(prev.dod_items || []), { task, completed: false }]
-      }));
-    }
+    setFormData(prev => ({
+      ...prev,
+      dod_items: [...(prev.dod_items || []), { task: 'New task', completed: false }]
+    }));
+    // Auto-open edit for the new item
+    const newIdx = (formData.dod_items || []).length;
+    setEditingDoDIdx(newIdx);
+  };
+
+  const handleDeleteDoD = (index: number) => {
+    setFormData(f => ({ ...f, dod_items: f.dod_items?.filter((_, i) => i !== index) }));
+    setEditingDoDIdx(null);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -215,7 +291,7 @@ export default function IssueTrackerTab() {
         </button>
       </div>
 
-      {/* ── E1: Stat Tiles ── */}
+      {/* ── Stat Tiles ── */}
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
         <button
           onClick={() => setFilterType('All')}
@@ -225,10 +301,7 @@ export default function IssueTrackerTab() {
             background: filterType === 'All' ? 'var(--pmo-gold)' : 'var(--bg-card)',
             color: filterType === 'All' ? '#000' : 'var(--text-primary)',
             border: `1px solid ${filterType === 'All' ? 'var(--pmo-gold)' : 'var(--border-subtle)'}`,
-            borderRadius: '6px',
-            cursor: 'pointer',
-            textAlign: 'left' as const,
-            transition: 'all 0.15s ease'
+            borderRadius: '6px', cursor: 'pointer', textAlign: 'left' as const, transition: 'all 0.15s ease'
           }}
         >
           <div style={{ fontSize: '1.6rem', fontWeight: 'bold', lineHeight: 1 }}>{preTypeFiltered.length}</div>
@@ -237,15 +310,11 @@ export default function IssueTrackerTab() {
         <button
           onClick={() => setFilterType(filterType === 'bug' ? 'All' : 'bug')}
           style={{
-            flex: '1 1 120px',
-            padding: '0.75rem 1rem',
+            flex: '1 1 120px', padding: '0.75rem 1rem',
             background: filterType === 'bug' ? '#ff475720' : 'var(--bg-card)',
             color: filterType === 'bug' ? '#ff4757' : 'var(--text-primary)',
             border: `1px solid ${filterType === 'bug' ? '#ff4757' : 'var(--border-subtle)'}`,
-            borderRadius: '6px',
-            cursor: 'pointer',
-            textAlign: 'left' as const,
-            transition: 'all 0.15s ease'
+            borderRadius: '6px', cursor: 'pointer', textAlign: 'left' as const, transition: 'all 0.15s ease'
           }}
         >
           <div style={{ fontSize: '1.6rem', fontWeight: 'bold', lineHeight: 1 }}>{bugCount}</div>
@@ -254,15 +323,11 @@ export default function IssueTrackerTab() {
         <button
           onClick={() => setFilterType(filterType === 'enhancement' ? 'All' : 'enhancement')}
           style={{
-            flex: '1 1 120px',
-            padding: '0.75rem 1rem',
+            flex: '1 1 120px', padding: '0.75rem 1rem',
             background: filterType === 'enhancement' ? 'var(--pmo-green, #7CC17020)' : 'var(--bg-card)',
             color: filterType === 'enhancement' ? 'var(--pmo-green, #7CC170)' : 'var(--text-primary)',
             border: `1px solid ${filterType === 'enhancement' ? 'var(--pmo-green, #7CC170)' : 'var(--border-subtle)'}`,
-            borderRadius: '6px',
-            cursor: 'pointer',
-            textAlign: 'left' as const,
-            transition: 'all 0.15s ease'
+            borderRadius: '6px', cursor: 'pointer', textAlign: 'left' as const, transition: 'all 0.15s ease'
           }}
         >
           <div style={{ fontSize: '1.6rem', fontWeight: 'bold', lineHeight: 1 }}>{enhCount}</div>
@@ -271,7 +336,25 @@ export default function IssueTrackerTab() {
       </div>
 
       {/* ── Filters ── */}
-      <div className="card" style={{ padding: '1.25rem', marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+      <div className="card" style={{ padding: '1.25rem', marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '2 1 200px' }}>
+          <label style={{ fontSize: '0.85rem', color: 'var(--pmo-slate)', fontWeight: 'bold' }}>🔍 Search</label>
+          <input
+            style={{ padding: '0.4rem 0.6rem', borderRadius: '4px', border: '1px solid var(--border-subtle)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+            placeholder="Filter by title or description..."
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+          />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 150px' }}>
+          <label style={{ fontSize: '0.85rem', color: 'var(--pmo-slate)', fontWeight: 'bold' }}>🪪 Issue ID</label>
+          <input
+            style={{ padding: '0.4rem 0.6rem', borderRadius: '4px', border: '1px solid var(--border-subtle)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '0.9rem', fontFamily: 'monospace' }}
+            placeholder="Paste partial ID..."
+            value={searchId}
+            onChange={e => setSearchId(e.target.value)}
+          />
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <label style={{ fontSize: '0.85rem', color: 'var(--pmo-slate)', fontWeight: 'bold' }}>Project</label>
           <select className="filter-select" value={filterProject} onChange={e => setFilterProject(e.target.value)} style={{ padding: '0.4rem', borderRadius: '4px', border: '1px solid var(--border-subtle)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
@@ -291,11 +374,10 @@ export default function IssueTrackerTab() {
           <label style={{ fontSize: '0.85rem', color: 'var(--pmo-slate)', fontWeight: 'bold' }}>Status</label>
           <select className="filter-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ padding: '0.4rem', borderRadius: '4px', border: '1px solid var(--border-subtle)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
             <option value="All">All Statuses</option>
-            <option value="Open">Active (Open+In Prog)</option>
-            <option value="New">New</option>
+            <option value="Open">Active (excl. Done/Parked)</option>
             <option value="In Progress">In Progress</option>
-            <option value="In Review">In Review</option>
-            <option value="Done">Done/Closed</option>
+            <option value="UAT">UAT</option>
+            <option value="Done">Done</option>
             <option value="Parked">Parked</option>
           </select>
         </div>
@@ -306,6 +388,7 @@ export default function IssueTrackerTab() {
             setSortField(f as any);
             setSortAsc(a === 'true');
           }} style={{ padding: '0.4rem', borderRadius: '4px', border: '1px solid var(--border-subtle)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+            <option value="status-true">Status</option>
             <option value="priority-true">Priority (P0 → P4)</option>
             <option value="priority-false">Priority (P4 → P0)</option>
             <option value="project_slug-true">Project (A → Z)</option>
@@ -314,22 +397,23 @@ export default function IssueTrackerTab() {
         </div>
       </div>
 
+      {/* ── Issue Cards ── */}
       <div className="issue-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {sortedIssues.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--pmo-slate)' }}>
             No issues match the current filters.
           </div>
         ) : sortedIssues.map(issue => (
-          <div 
-            key={issue.id} 
-            onClick={() => handleRowClick(issue)} 
-            className="card clickable-row" 
-            style={{ 
-              padding: '1.25rem', 
+          <div
+            key={issue.id}
+            onClick={() => handleRowClick(issue)}
+            className="card clickable-row"
+            style={{
+              padding: '1.25rem',
               cursor: 'pointer',
               borderLeft: `4px solid ${
-                issue.priority === 'P0' ? '#ff4757' : 
-                issue.priority === 'P1' ? 'var(--pmo-gold)' : 
+                issue.priority === 'P0' ? '#ff4757' :
+                issue.priority === 'P1' ? 'var(--pmo-gold)' :
                 'var(--border-subtle)'
               }`
             }}
@@ -342,9 +426,8 @@ export default function IssueTrackerTab() {
                   <span className={`status-badge ${issue.type === 'bug' ? 'danger' : 'success'}`} style={{ padding: '0.15rem 0.5rem', fontSize: '0.7rem' }}>
                     {issue.type === 'bug' ? 'Bug' : 'Enh'}
                   </span>
-                  <span style={{ 
-                    fontSize: '0.85rem', 
-                    fontWeight: 'bold',
+                  <span style={{
+                    fontSize: '0.85rem', fontWeight: 'bold',
                     color: issue.priority === 'P0' ? '#ff4757' : issue.priority === 'P1' ? 'var(--pmo-gold)' : 'var(--text-primary)'
                   }}>
                     {issue.priority}
@@ -357,34 +440,44 @@ export default function IssueTrackerTab() {
                   {issue.status}
                 </span>
                 <div style={{ display: 'flex', gap: '4px', fontSize: '1.1rem' }}>
-                  <span title="Compile">{issue.test_compile}</span>
-                  <span title="DoD">{issue.test_dod}</span>
-                  <span title="SIT">{issue.test_sit}</span>
-                  <span title="UAT">{issue.test_uat}</span>
+                  <span title="Pass Criteria: Build, Lint, or Syntax passes (0 errors, 0 warnings).">{issue.test_compile}</span>
+                  <span title="Pass Criteria: AI confirms all items in Description and DoD Checklist are implemented." style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                    {issue.test_dod}
+                    {issue.dod_items && issue.dod_items.length > 0 && (
+                      <span style={{ fontSize: '0.65rem', color: 'var(--pmo-gold)', fontWeight: 'bold' }}>
+                        {Math.round((issue.dod_items.filter(i => i.completed).length / issue.dod_items.length) * 100)}%
+                      </span>
+                    )}
+                  </span>
+                  <span title="Pass Criteria: Integrated into master/main; verified in Production/Live.">{issue.test_sit}</span>
+                  <span title="Pass Criteria: Explicit approval from Will in chat (AI PROHIBITED from marking ✅).">{issue.test_uat}</span>
                 </div>
               </div>
             </div>
-            
-            <p style={{ 
-              margin: '0.5rem 0 0.75rem 0', 
-              fontSize: '0.9rem', 
+
+            <p style={{
+              margin: '0.5rem 0 0.75rem 0',
+              fontSize: '0.9rem',
               color: 'var(--pmo-slate)',
               whiteSpace: 'pre-wrap',
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden'
+              width: '100%',
+              display: 'block'
             }}>
               {issue.description}
             </p>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
-              <div style={{ color: 'var(--pmo-slate)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '0.75rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem' }}>
+              <div style={{ color: 'var(--pmo-slate)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
                 {issue.dod_items && issue.dod_items.length > 0 && (
-                  <span>DoD: {issue.dod_items.filter(i => i.completed).length}/{issue.dod_items.length} tasks</span>
+                  <>
+                    <span>DoD: {issue.dod_items.filter(i => i.completed).length}/{issue.dod_items.length}</span>
+                    <span style={{ padding: '2px 6px', background: 'var(--bg-main)', borderRadius: '4px', color: 'var(--pmo-gold)', fontWeight: 'bold' }}>
+                      {Math.round((issue.dod_items.filter(i => i.completed).length / issue.dod_items.length) * 100)}%
+                    </span>
+                  </>
                 )}
               </div>
-              <div style={{ color: 'var(--pmo-slate)' }}>
+              <div style={{ color: 'var(--pmo-slate)', fontSize: '0.85rem' }}>
                 Updated: {issue.updated_at?.toMillis ? formatDate(new Date(issue.updated_at.toMillis()).toISOString()) : ''}
               </div>
             </div>
@@ -395,9 +488,16 @@ export default function IssueTrackerTab() {
       {/* ── Issue Modal ── */}
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-card" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
+          <div className="modal-card" style={{ maxWidth: '640px' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3 style={{ margin: 0 }}>{editingIssue ? 'Edit Issue' : 'Log New Issue'}</h3>
+              <div>
+                <h3 style={{ margin: 0 }}>{editingIssue ? 'Edit Issue' : 'Log New Issue'}</h3>
+                {editingIssue && (
+                  <div style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: 'var(--pmo-slate)', marginTop: '2px' }}>
+                    ID: {editingIssue.id}
+                  </div>
+                )}
+              </div>
               <button className="cancel-btn" onClick={() => setIsModalOpen(false)} style={{ fontSize: '1.2rem' }}>✕</button>
             </div>
 
@@ -416,47 +516,80 @@ export default function IssueTrackerTab() {
                   </select>
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label className="slider-label">Type</label>
-                  <select
-                    className="field-select"
-                    value={formData.type}
-                    onChange={e => setFormData(f => ({ ...f, type: e.target.value as any }))}
-                  >
-                    <option value="bug">Bug</option>
-                    <option value="enhancement">Enhancement</option>
-                  </select>
+                  <label className="slider-label">Type <span style={{ color: '#ff4757', fontSize: '0.75rem' }}>{!formData.type ? '(required)' : ''}</span></label>
+                  <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                    {(['bug', 'enhancement'] as const).map(t => (
+                      <label key={t} style={{
+                        flex: 1, textAlign: 'center', padding: '6px 4px',
+                        borderRadius: '6px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 'bold',
+                        border: `1px solid ${formData.type === t ? (t === 'bug' ? '#ff4757' : 'var(--pmo-green, #7CC170)') : 'var(--border-subtle)'}`,
+                        background: formData.type === t ? (t === 'bug' ? '#ff475720' : 'var(--pmo-green-20, #7CC17020)') : 'var(--bg-card)',
+                        color: formData.type === t ? (t === 'bug' ? '#ff4757' : 'var(--pmo-green, #7CC170)') : 'var(--pmo-slate)',
+                        transition: 'all 0.15s'
+                      }}>
+                        <input type="radio" name="type" value={t} checked={formData.type === t}
+                          onChange={() => setFormData(f => ({ ...f, type: t }))}
+                          style={{ display: 'none' }} required={!editingIssue} />
+                        {t === 'bug' ? '🐛 Bug' : '🚀 Enh'}
+                      </label>
+                    ))}
+                  </div>
                 </div>
                 <div style={{ flex: 1 }}>
                   <label className="slider-label">Priority</label>
-                  <select
-                    className="field-select"
-                    value={formData.priority}
-                    onChange={e => setFormData(f => ({ ...f, priority: e.target.value as any }))}
-                  >
-                    {['P0', 'P1', 'P2', 'P3', 'P4'].map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap' }}>
+                    {(['P0', 'P1', 'P2', 'P3', 'P4'] as const).map(p => (
+                      <label key={p} style={{
+                        padding: '5px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold',
+                        border: `1px solid ${formData.priority === p ? (p === 'P0' ? '#ff4757' : p === 'P1' ? 'var(--pmo-gold)' : 'var(--border-subtle)') : 'var(--border-subtle)'}`,
+                        background: formData.priority === p ? (p === 'P0' ? '#ff475720' : p === 'P1' ? 'var(--pmo-gold-20, rgba(212,175,55,0.15))' : 'var(--bg-main)') : 'var(--bg-card)',
+                        color: formData.priority === p ? (p === 'P0' ? '#ff4757' : p === 'P1' ? 'var(--pmo-gold)' : 'var(--text-primary)') : 'var(--pmo-slate)',
+                        transition: 'all 0.15s'
+                      }}>
+                        <input type="radio" name="priority" value={p} checked={formData.priority === p}
+                          onChange={() => setFormData(f => ({ ...f, priority: p }))}
+                          style={{ display: 'none' }} />
+                        {p}
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
 
               <div>
-                <label className="slider-label">Title</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label className="slider-label" style={{ margin: 0 }}>Title</label>
+                  <button type="button" onClick={() => startVoice('title')} title="Voice capture"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', padding: '2px 4px',
+                      color: voiceField === 'title' ? '#ff4757' : 'var(--pmo-slate)', transition: 'color 0.2s' }}>
+                    {voiceField === 'title' ? '🔴' : '🎤'}
+                  </button>
+                </div>
                 <input
                   className="field-input"
                   value={formData.title}
                   onChange={e => setFormData(f => ({ ...f, title: e.target.value }))}
-                  placeholder="Summarize the issue..."
+                  placeholder={voiceField === 'title' ? 'Listening...' : 'Summarize the issue...'}
                   required
                 />
               </div>
 
-              <div>
-                <label className="slider-label">Description</label>
+              <div style={{ width: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label className="slider-label" style={{ margin: 0 }}>Description</label>
+                  <button type="button" onClick={() => startVoice('description')} title="Voice capture (appends to existing text)"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', padding: '2px 4px',
+                      color: voiceField === 'description' ? '#ff4757' : 'var(--pmo-slate)', transition: 'color 0.2s' }}>
+                    {voiceField === 'description' ? '🔴' : '🎤'}
+                  </button>
+                </div>
                 <textarea
                   className="field-input"
+                  style={{ width: '100%', boxSizing: 'border-box', minHeight: '120px' }}
                   rows={4}
                   value={formData.description}
                   onChange={e => setFormData(f => ({ ...f, description: e.target.value }))}
-                  placeholder="More context, expected behavior, logs..."
+                  placeholder={voiceField === 'description' ? 'Listening...' : 'More context, expected behavior, logs...'}
                 />
               </div>
 
@@ -475,10 +608,10 @@ export default function IssueTrackerTab() {
                 </div>
                 <div style={{ flex: 2, display: 'flex', gap: '8px', justifyContent: 'flex-end', paddingBottom: '4px' }}>
                   {[
-                    { key: 'test_compile', label: 'Comp', tip: 'Build successful, Zero lints' },
-                    { key: 'test_dod', label: 'DoD', tip: 'Checklist 100% complete' },
-                    { key: 'test_sit', label: 'SIT', tip: 'Integrated & Verified' },
-                    { key: 'test_uat', label: 'UAT', tip: "Approved by user in chat" }
+                    { key: 'test_compile', label: 'Comp', tip: 'Pass Criteria: Build, Lint, or Syntax passes (0 errors, 0 warnings).' },
+                    { key: 'test_dod', label: 'DoD', tip: 'Pass Criteria: AI confirms all items in Description and DoD Checklist are implemented.' },
+                    { key: 'test_sit', label: 'SIT', tip: 'Pass Criteria: Integrated into master/main; verified in Production/Live.' },
+                    { key: 'test_uat', label: 'UAT', tip: 'Pass Criteria: Explicit approval from Will in chat (AI PROHIBITED from marking ✅).' }
                   ].map(test => (
                     <div key={test.key} style={{ textAlign: 'center' }}>
                       <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', color: 'var(--pmo-slate)', marginBottom: '4px' }}>
@@ -489,7 +622,10 @@ export default function IssueTrackerTab() {
                         className="icon-btn"
                         title={test.tip}
                         onClick={() => handleTestCycle(test.key as any)}
-                        style={{ fontSize: '1.2rem', padding: '0.4rem 0.8rem', width: '45px', opacity: (test.key === 'test_uat' && formData.test_sit !== '✅') ? 0.4 : 1 }}
+                        style={{
+                          fontSize: '1.2rem', padding: '0.4rem 0.8rem', width: '45px',
+                          opacity: (test.key === 'test_uat' && formData.test_sit !== '✅') ? 0.4 : 1
+                        }}
                         disabled={test.key === 'test_uat' && formData.test_sit !== '✅'}
                       >
                         {formData[test.key as keyof Issue] as string}
@@ -500,11 +636,11 @@ export default function IssueTrackerTab() {
               </div>
 
               {formData.test_sit === '✅' && formData.test_uat !== '✅' && (
-                <div style={{ 
-                  background: 'var(--pmo-gold-20)', 
-                  padding: '0.75rem', 
-                  borderRadius: '6px', 
-                  fontSize: '0.85rem', 
+                <div style={{
+                  background: 'var(--pmo-gold-20)',
+                  padding: '0.75rem',
+                  borderRadius: '6px',
+                  fontSize: '0.85rem',
                   border: '1px solid var(--pmo-gold)',
                   marginBottom: '1rem'
                 }}>
@@ -512,42 +648,66 @@ export default function IssueTrackerTab() {
                 </div>
               )}
 
+              {/* ── DoD Checklist ── */}
               <div style={{ marginTop: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                   <label className="slider-label" style={{ margin: 0 }}>Definition of Done Checklist</label>
                   <button type="button" onClick={handleAddDoD} style={{ fontSize: '0.75rem', padding: '2px 8px' }} className="btn-secondary">＋ Task</button>
                 </div>
-                <div style={{ 
-                  background: 'var(--bg-main)', 
-                  padding: '1rem', 
-                  borderRadius: '6px', 
+                <div style={{
+                  background: 'var(--bg-main)',
+                  padding: '0.75rem',
+                  borderRadius: '6px',
                   border: '1px solid var(--border-subtle)',
-                  maxHeight: '150px',
+                  maxHeight: '220px',
                   overflowY: 'auto'
                 }}>
                   {(!formData.dod_items || formData.dod_items.length === 0) ? (
                     <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--pmo-slate)', fontStyle: 'italic' }}>No tasks added. Click "+ Task" to start.</p>
                   ) : (
                     formData.dod_items.map((item, idx) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-                        <input 
-                          type="checkbox" 
-                          checked={item.completed} 
-                          onChange={() => handleToggleDoD(idx)}
-                          style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                        />
-                        <span style={{ 
-                          fontSize: '0.9rem', 
-                          textDecoration: item.completed ? 'line-through' : 'none',
-                          color: item.completed ? 'var(--pmo-slate)' : 'var(--text-primary)'
-                        }}>
-                          {item.task}
-                        </span>
-                        <button 
-                          type="button" 
-                          onClick={() => setFormData(f => ({ ...f, dod_items: f.dod_items?.filter((_, i) => i !== idx) }))}
-                          style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#ff4757', cursor: 'pointer', fontSize: '0.8rem' }}
-                        >✕</button>
+                      <div key={idx} style={{ marginBottom: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={item.completed}
+                            onChange={() => handleToggleDoD(idx)}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer', flexShrink: 0 }}
+                          />
+                          {editingDoDIdx === idx ? (
+                            <input
+                              type="text"
+                              value={item.task}
+                              onChange={e => handleEditDoDTask(idx, e.target.value)}
+                              onBlur={() => setEditingDoDIdx(null)}
+                              onKeyDown={e => { if (e.key === 'Enter') setEditingDoDIdx(null); }}
+                              autoFocus
+                              style={{
+                                flex: 1, fontSize: '0.9rem', padding: '2px 6px',
+                                borderRadius: '4px', border: '1px solid var(--pmo-gold)',
+                                background: 'var(--bg-card)', color: 'var(--text-primary)'
+                              }}
+                            />
+                          ) : (
+                            <span
+                              onClick={() => setEditingDoDIdx(idx)}
+                              title="Click to edit"
+                              style={{
+                                flex: 1, fontSize: '0.9rem', cursor: 'text',
+                                textDecoration: item.completed ? 'line-through' : 'none',
+                                color: item.completed ? 'var(--pmo-slate)' : 'var(--text-primary)'
+                              }}
+                            >
+                              {item.task}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDoD(idx)}
+                            style={{ background: 'none', border: 'none', color: '#ff4757', cursor: 'pointer', fontSize: '0.8rem', flexShrink: 0, padding: '0 4px' }}
+                            title="Delete task"
+                          >✕</button>
+                        </div>
                       </div>
                     ))
                   )}

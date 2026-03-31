@@ -7,16 +7,16 @@ import { formatDate } from '../utils/formatDate';
 
 interface Project {
   name: string;
-  status?: string;
-  description?: string;
-  current_ai?: string;
-  last_active?: string;
-  github?: string;
-  backlog?: string;
-  deploy?: string;
-  drive?: string;
-  local?: string;
-  category?: string;
+  status?: string | null;
+  description?: string | null;
+  current_ai?: string | null;
+  last_active?: string | null;
+  github?: string | null;
+  backlog?: string | null;
+  deploy?: string | null;
+  drive?: string | null;
+  local?: string | null;
+  category?: string | null;
 }
 
 interface Issue {

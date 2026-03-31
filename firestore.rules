@@ -2,12 +2,66 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /projects/{document=**} {
-      allow read, write: if true;
+
+    // ── PROJECTS collection ─────────────────────────────────────────────────
+    // AI may read and create. Updates may not change system fields.
+    // Nobody may delete.
+    match /projects/{projectId} {
+      allow read: if true;
+
+      allow create: if
+        request.resource.data.keys().hasAll(['project_slug', 'name', 'status', 'type']) &&
+        request.resource.data.project_slug is string &&
+        request.resource.data.name is string;
+
+      allow update: if
+        // Immutable system fields must not change
+        request.resource.data.project_slug == resource.data.project_slug &&
+        request.resource.data.created_at == resource.data.created_at &&
+        request.resource.data.created_by == resource.data.created_by;
+
+      allow delete: if false;
     }
-    match /issues/{document=**} {
-      allow read, write: if true;
+
+    // ── ISSUES collection ───────────────────────────────────────────────────
+    // AI may read, create, and update only permitted fields.
+    // No deletes ever.
+    match /issues/{issueId} {
+      allow read: if true;
+
+      // CREATE: all mandatory fields required
+      allow create: if
+        request.resource.data.keys().hasAll([
+          'title', 'description', 'project_slug', 'type',
+          'priority', 'status', 'logged_date',
+          'test_compile', 'test_dod', 'test_sit', 'test_uat'
+        ]) &&
+        request.resource.data.title is string &&
+        request.resource.data.title.size() > 0 &&
+        request.resource.data.project_slug is string &&
+        request.resource.data.project_slug.size() > 0 &&
+        request.resource.data.type in ['bug', 'enhancement'] &&
+        request.resource.data.priority in ['P0', 'P1', 'P2', 'P3', 'P4'] &&
+        request.resource.data.status in ['Open', 'In Progress', 'UAT', 'Done', 'Parked'];
+
+      // UPDATE: system/immutable fields must not change
+      allow update: if
+        // These fields are set at create and must never change
+        request.resource.data.project_slug  == resource.data.project_slug &&
+        request.resource.data.title         == resource.data.title &&
+        request.resource.data.type          == resource.data.type &&
+        request.resource.data.logged_date   == resource.data.logged_date &&
+        request.resource.data.created_at    == resource.data.created_at &&
+        request.resource.data.created_by    == resource.data.created_by &&
+        // Status must be a valid value
+        request.resource.data.status in ['Open', 'In Progress', 'UAT', 'Done', 'Parked'] &&
+        // Priority must be a valid value
+        request.resource.data.priority in ['P0', 'P1', 'P2', 'P3', 'P4'];
+
+      allow delete: if false;
     }
+
+    // ── Catch-all: deny everything else ────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
     }
