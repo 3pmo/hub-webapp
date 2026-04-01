@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { firestore } from '../services/firebase';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import projectsData from '../assets/projects.json';
 import { formatDate } from '../utils/formatDate';
 
 interface Project {
@@ -37,11 +36,48 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default function StatusTab() {
-  const [projects] = useState<Project[]>(projectsData as Project[]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [issuesLoading, setIssuesLoading] = useState(true);
+  const [projectsLoading, setProjectsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
+
+  // ── Live projects from Firestore (Sync with SSOT) ──
+  useEffect(() => {
+    const q = query(collection(firestore, 'projects'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const parsed: Project[] = snapshot.docs.map(doc => {
+        const d = doc.data();
+        return {
+          name: d.name || doc.id,
+          status: d.status || null,
+          description: d.description || null,
+          current_ai: d.current_ai || null,
+          // Firestore Timestamp to ISO string
+          last_active: d.last_active?.toDate ? d.last_active.toDate().toISOString().slice(0, 10) : (d.last_active || null),
+          github: d.github_repo || null,
+          drive: d.drive_path || null,
+          local: d.local_path || null,
+          deploy: d.deploy_method || null,
+          category: d.category || 'active',
+        } as Project;
+      });
+
+      // Sort: standing -> active -> tab, then alphabetically
+      const order: Record<string, number> = { standing: 0, active: 1, tab: 2 };
+      const sorted = parsed.sort((a, b) => {
+        const ao = order[a.category!] ?? 9;
+        const bo = order[b.category!] ?? 9;
+        if (ao !== bo) return ao - bo;
+        return a.name.localeCompare(b.name);
+      });
+
+      setProjects(sorted);
+      setProjectsLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // ── Live issues from Firestore ────────────────────────────────────────────
   useEffect(() => {
@@ -126,7 +162,7 @@ export default function StatusTab() {
           { label: 'Tabs',     value: projects.filter(p => p.status === 'Active Tab').length },
         ].map(s => (
           <div key={s.label} className="stat-card">
-            <div className="stat-num">{s.value}</div>
+            <div className="stat-num">{projectsLoading ? '…' : s.value}</div>
             <div className="stat-label">{s.label}</div>
           </div>
         ))}
