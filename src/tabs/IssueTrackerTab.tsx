@@ -261,6 +261,8 @@ export default function IssueTrackerTab() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // 1. Prepare base data with metadata
     const data = {
       ...formData,
       updated_at: serverTimestamp(),
@@ -269,9 +271,24 @@ export default function IssueTrackerTab() {
 
     try {
       if (editingIssue) {
+        // 2. UPDATE: Only send mutable fields to avoid rules violations on immutable fields
+        const updatePayload = {
+          description: data.description,
+          status: data.status,
+          priority: data.priority,
+          test_compile: data.test_compile,
+          test_dod: data.test_dod,
+          test_sit: data.test_sit,
+          test_uat: data.test_uat,
+          dod_items: data.dod_items || [],
+          updated_at: serverTimestamp(),
+          updated_by: 'user'
+        };
+        
         const docRef = doc(firestore, 'issues', editingIssue.id);
-        await updateDoc(docRef, data as any);
+        await updateDoc(docRef, updatePayload as any);
       } else {
+        // 3. CREATE: Include all mandatory fields
         await addDoc(collection(firestore, 'issues'), {
           ...data,
           created_at: serverTimestamp(),
@@ -280,9 +297,9 @@ export default function IssueTrackerTab() {
         });
       }
       setIsModalOpen(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error saving issue:", err);
-      alert("Failed to save issue.");
+      alert(`Failed to save issue: ${err.message || "Unknown error"}`);
     }
   };
 
@@ -484,7 +501,7 @@ export default function IssueTrackerTab() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.4rem' }}>
-                  <span style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: 'var(--pmo-slate)' }}>#{issue.id.substring(0,6)}</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--pmo-slate)' }}>#{issue.id}</span>
                   <span style={{ color: 'var(--pmo-gold)', fontWeight: 'bold' }}>{issue.project_slug}</span>
                   <span className={`status-badge ${issue.type === 'bug' ? 'danger' : 'success'}`} style={{ padding: '0.15rem 0.5rem', fontSize: '0.7rem' }}>
                     {issue.type === 'bug' ? 'Bug' : 'Enh'}
