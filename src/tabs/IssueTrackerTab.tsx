@@ -478,7 +478,7 @@ export default function IssueTrackerTab() {
       </div>
 
       {/* ── Issue Cards ── */}
-      <div className="issue-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div className="issue-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1, overflowY: 'auto', paddingBottom: '1rem' }}>
         {sortedIssues.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--pmo-slate)' }}>
             No issues match the current filters.
@@ -535,8 +535,9 @@ export default function IssueTrackerTab() {
               </div>
             </div>
 
+            <div style={{ margin: '0.5rem 0 0.25rem 0', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--pmo-gold)', textTransform: 'uppercase' }}>Outcome Description</div>
             <p style={{
-              margin: '0.5rem 0 0.75rem 0',
+              margin: '0 0 0.75rem 0',
               fontSize: '0.9rem',
               color: 'var(--pmo-slate)',
               whiteSpace: 'pre-wrap',
@@ -568,7 +569,7 @@ export default function IssueTrackerTab() {
       {/* ── Issue Modal ── */}
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-card" style={{ maxWidth: '640px' }} onClick={e => e.stopPropagation()}>
+          <div className="modal-card" style={{ maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <div>
                 <h3 style={{ margin: 0 }}>{editingIssue ? 'Edit Issue' : 'Log New Issue'}</h3>
@@ -656,7 +657,7 @@ export default function IssueTrackerTab() {
 
               <div style={{ width: '100%' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label className="slider-label" style={{ margin: 0 }}>Description</label>
+                  <label className="slider-label" style={{ margin: 0 }}>Outcome Description</label>
                   <button type="button" onClick={() => startVoice('description')} title="Voice capture (appends to existing text)"
                     style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', padding: '2px 4px',
                       color: voiceField === 'description' ? '#ff4757' : 'var(--pmo-slate)', transition: 'color 0.2s' }}>
@@ -804,6 +805,18 @@ export default function IssueTrackerTab() {
           </div>
         </div>
       )}
+
+      {/* ── Page Footer ── */}
+      <div className="tab-footer" style={{ 
+        marginTop: 'auto', 
+        paddingTop: '1.5rem', 
+        borderTop: '1px solid var(--border-subtle)', 
+        color: 'var(--pmo-slate)', 
+        fontSize: '0.85rem',
+        textAlign: 'center'
+      }}>
+        Last Updated: {new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+      </div>
     </div>
   );
 }
