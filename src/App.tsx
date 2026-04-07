@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import './App.css';
 import { formatDateTime } from './utils/formatDate';
-import StatusTab from './tabs/StatusTab';
 import WorkflowTab from './tabs/WorkflowTab';
 import OrganizerTab from './tabs/OrganizerTab';
 import PairwiseTab from './tabs/PairwiseTab';
@@ -13,10 +12,10 @@ import IssueTrackerTab from './tabs/IssueTrackerTab';
 import syncMeta from './assets/sync-meta.json';
 
 // Tabs match the old sub-tabs but are now all in the sidebar
-type Tab = 'status' | 'workflow' | 'organizer' | 'pairwise' | 'todo' | 'brand' | 'architecture' | 'cost' | 'issues';
+type Tab = 'workflow' | 'organizer' | 'pairwise' | 'todo' | 'brand' | 'architecture' | 'cost' | 'issues';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('status');
+  const [activeTab, setActiveTab] = useState<Tab>('workflow');
   const [isPrintable, setIsPrintable] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -27,7 +26,6 @@ export default function App() {
 
   const getTabTitle = (tab: Tab) => {
     switch (tab) {
-      case 'status': return 'Project Status';
       case 'workflow': return 'Ecosystem Workflow';
       case 'organizer': return 'Thought Organizer';
       case 'pairwise': return 'Pairwise Analysis';
@@ -54,9 +52,6 @@ export default function App() {
 
         <nav className="nav-menu">
           <div className="nav-group-title">Control</div>
-          <button className={`nav-link ${activeTab === 'status' ? 'active' : ''}`} onClick={() => setActiveTab('status')}>
-            📊 Status
-          </button>
           <button className={`nav-link ${activeTab === 'workflow' ? 'active' : ''}`} onClick={() => setActiveTab('workflow')}>
             🗺 Workflow
           </button>
@@ -101,7 +96,6 @@ export default function App() {
 
         <div className="app-content-wrapper">
           <div className="tab-panel" key={activeTab}>
-            {activeTab === 'status' && <StatusTab />}
             {activeTab === 'workflow' && <WorkflowTab />}
             {activeTab === 'organizer' && <OrganizerTab />}
             {activeTab === 'pairwise' && <PairwiseTab />}
