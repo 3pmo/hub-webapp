@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { firestore } from '../services/firebase';
 import { collection, onSnapshot, query } from 'firebase/firestore';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { formatDate } from '../utils/formatDate';
 
 interface Project {
@@ -43,6 +43,7 @@ export default function StatusTab() {
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [filterMetric, setFilterMetric] = useState<'All' | 'Active' | 'Standing' | 'Active Tab' | 'Bugs' | 'Enhancements'>('All');
 
   // ── Live projects from Firestore (Sync with SSOT) ──
   useEffect(() => {
@@ -112,35 +113,43 @@ export default function StatusTab() {
   const totalBugsAll = issues.filter(i => i.type === 'bug').length;
   const totalEnhsAll = issues.filter(i => i.type === 'enhancement').length;
 
-  // Issue graph data — group by date (#a0oY7P)
+  // Issue graph data — CUMULATIVE progress (#a0oY7P)
   const graphData = (() => {
     const byDate: Record<string, { date: string; bugs: number; enhancements: number }> = {};
     issues.forEach(iss => {
-      // logged_date may be a Firestore Timestamp at runtime even though typed as string
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ld = iss.logged_date as any;
       const raw: string | null = typeof ld === 'string' ? ld
         : (ld?.toDate ? ld.toDate().toISOString().slice(0, 10) : null)
           ?? (iss.created_at?.toDate ? iss.created_at.toDate().toISOString().slice(0, 10) : null);
       if (!raw) return;
       const date = raw.slice(0, 10);
-      if (isNaN(new Date(date).getTime())) return; // skip unparseable dates
+      if (isNaN(new Date(date).getTime())) return;
       if (!byDate[date]) byDate[date] = { date, bugs: 0, enhancements: 0 };
       if (iss.type === 'bug') byDate[date].bugs++;
       else byDate[date].enhancements++;
     });
-    return Object.values(byDate)
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map(d => {
-        const [y, m, day] = d.date.split('-').map(Number);
-        const dateObj = new Date(y, m - 1, day);
-        return {
-          ...d,
-          date: isNaN(dateObj.getTime()) 
-            ? 'Unknown' 
-            : dateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
-        };
-      });
+
+    const sortedDates = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
+    
+    // Calculate cumulative totals
+    let cumulativeBugs = 0;
+    let cumulativeEnhs = 0;
+    
+    return sortedDates.map(d => {
+      cumulativeBugs += d.bugs;
+      cumulativeEnhs += d.enhancements;
+      
+      const [y, m, day] = d.date.split('-').map(Number);
+      const dateObj = new Date(y, m - 1, day);
+      return {
+        ...d,
+        bugs: cumulativeBugs,
+        enhancements: cumulativeEnhs,
+        date: isNaN(dateObj.getTime()) 
+          ? 'Unknown' 
+          : dateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+      };
+    });
   })();
 
   // Filtered project list
@@ -149,65 +158,125 @@ export default function StatusTab() {
     const matchSearch = !search
       || p.name.toLowerCase().includes(search.toLowerCase())
       || (p.description || '').toLowerCase().includes(search.toLowerCase());
+    
+    // Metric filter logic
+    let matchMetric = true;
+    if (filterMetric === 'Bugs') matchMetric = (issuesByProject[p.name]?.bugs || 0) > 0;
+    else if (filterMetric === 'Enhancements') matchMetric = (issuesByProject[p.name]?.enhancements || 0) > 0;
+    else if (filterMetric === 'Active') matchMetric = p.status === 'Active';
+    else if (filterMetric === 'Standing') matchMetric = p.status === 'Standing';
+    else if (filterMetric === 'Active Tab') matchMetric = p.status === 'Active Tab';
+
     const matchStatus = filterStatus === 'All' || p.status === filterStatus;
-    return matchSearch && matchStatus;
+    
+    return matchSearch && matchMetric && matchStatus;
   });
 
   return (
     <div className="status-tab">
 
-      {/* ── KPI Stats Strip (#kRWMiI: adds live bug/enh counts) ── */}
+      {/* ── KPI Stats Strip (Interactive Filters) ── */}
       <div className="status-stats-row">
         {[
-          { label: 'Total',    value: projects.length },
-          { label: 'Active',   value: projects.filter(p => (p.status || '').includes('Active')).length },
-          { label: 'Standing', value: projects.filter(p => p.status === 'Standing').length },
-          { label: 'Tabs',     value: projects.filter(p => p.status === 'Active Tab').length },
+          { label: 'Total',    value: projects.length, type: 'All' },
+          { label: 'Active',   value: projects.filter(p => (p.status || '').includes('Active')).length, type: 'Active' },
+          { label: 'Standing', value: projects.filter(p => p.status === 'Standing').length, type: 'Standing' },
+          { label: 'Tabs',     value: projects.filter(p => p.status === 'Active Tab').length, type: 'Active Tab' },
         ].map(s => (
-          <div key={s.label} className="stat-card">
+          <button 
+            key={s.label} 
+            className={`stat-card ${filterMetric === s.type ? 'active' : ''}`}
+            onClick={() => {
+              setFilterMetric(s.type as any);
+              setFilterStatus('All');
+            }}
+          >
             <div className="stat-num">{projectsLoading ? '…' : s.value}</div>
             <div className="stat-label">{s.label}</div>
-          </div>
+          </button>
         ))}
-        <div className="stat-card stat-card--bug">
+        <button 
+          className={`stat-card stat-card--bug ${filterMetric === 'Bugs' ? 'active' : ''}`}
+          onClick={() => {
+            setFilterMetric('Bugs');
+            setFilterStatus('All');
+          }}
+        >
           <div className="stat-num">{issuesLoading ? '…' : totalOpenBugs}</div>
           <div className="stat-label">🐛 Open Bugs</div>
           {!issuesLoading && <div className="stat-sub">of {totalBugsAll} total</div>}
-        </div>
-        <div className="stat-card stat-card--enh">
+        </button>
+        <button 
+          className={`stat-card stat-card--enh ${filterMetric === 'Enhancements' ? 'active' : ''}`}
+          onClick={() => {
+            setFilterMetric('Enhancements');
+            setFilterStatus('All');
+          }}
+        >
           <div className="stat-num">{issuesLoading ? '…' : totalOpenEnhs}</div>
           <div className="stat-label">🚀 Open Enhs</div>
           {!issuesLoading && <div className="stat-sub">of {totalEnhsAll} total</div>}
-        </div>
+        </button>
       </div>
 
-      {/* ── Issue Graph (#a0oY7P) ── */}
+      {/* ── Issue Graph (LineChart with Cumulative Progress) ── */}
       {!issuesLoading && graphData.length > 0 && (
         <div className="card status-graph-card">
           <div className="status-graph-header">
-            <h3 className="status-graph-title">Issues Logged Over Time</h3>
+            <h3 className="status-graph-title">Total Issues Over Time</h3>
             <div className="status-graph-meta">
-              <span className="status-graph-sub">All projects · {issues.length} total</span>
+              <span className="status-graph-sub">All projects · {issues.length} lifetime items</span>
               {lastUpdated && <span className="status-last-updated">Last Updated: {lastUpdated}</span>}
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={graphData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-              <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--pmo-grey)' }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: 'var(--pmo-grey)' }} />
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={graphData} margin={{ top: 12, right: 12, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+              <XAxis 
+                dataKey="date" 
+                tick={{ fontSize: 11, fill: 'var(--pmo-grey)' }} 
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis 
+                allowDecimals={false} 
+                tick={{ fontSize: 11, fill: 'var(--pmo-grey)' }}
+                axisLine={false}
+                tickLine={false}
+              />
               <Tooltip
                 contentStyle={{
                   background: 'var(--bg-elevated)',
                   border: '1px solid var(--border-subtle)',
-                  borderRadius: '6px',
-                  fontSize: '0.8rem',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                  fontSize: '0.85rem',
                   color: 'var(--text-primary)',
                 }}
               />
-              <Legend wrapperStyle={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }} />
-              <Bar dataKey="bugs" name="Bugs" fill="#FF6B6B" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="enhancements" name="Enhancements" fill="#469CBE" radius={[3, 3, 0, 0]} />
-            </BarChart>
+              <Legend 
+                wrapperStyle={{ fontSize: '0.8rem', color: 'var(--text-secondary)', paddingTop: '10px' }} 
+                iconType="circle"
+              />
+              <Line 
+                type="monotone" 
+                dataKey="bugs" 
+                name="Bugs" 
+                stroke="#FF6B6B" 
+                strokeWidth={3}
+                dot={{ fill: '#FF6B6B', r: 4, strokeWidth: 2, stroke: 'var(--bg-card)' }}
+                activeDot={{ r: 6, stroke: 'white', strokeWidth: 2 }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="enhancements" 
+                name="Enhancements" 
+                stroke="#469CBE" 
+                strokeWidth={3}
+                dot={{ fill: '#469CBE', r: 4, strokeWidth: 2, stroke: 'var(--bg-card)' }}
+                activeDot={{ r: 6, stroke: 'white', strokeWidth: 2 }}
+              />
+            </LineChart>
           </ResponsiveContainer>
         </div>
       )}
