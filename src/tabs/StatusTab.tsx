@@ -1,30 +1,11 @@
-import { useState, useEffect } from 'react';
-import { firestore } from '../services/firebase';
-import { collection, onSnapshot, query } from 'firebase/firestore';
-import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { formatDate } from '../utils/formatDate';
-
-interface Project {
-  name: string;
-  status?: string | null;
-  description?: string | null;
-  current_ai?: string | null;
-  last_active?: string | null;
-  github?: string | null;
-  backlog?: string | null;
-  deploy?: string | null;
-  drive?: string | null;
-  local?: string | null;
-  category?: string | null;
-}
-
 interface Issue {
   id: string;
   project_slug: string;
   type: 'bug' | 'enhancement';
-  status: string;
+  status: 'Captured' | 'Comp' | 'DoD' | 'SIT' | 'UAT' | 'Done' | 'Blocked';
   logged_date?: string;
   created_at?: any;
+  updated_at?: any;
   test_compile?: string;
   test_dod?: string;
   test_sit?: string;
@@ -32,16 +13,21 @@ interface Issue {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  'Active': '#7CC170',
+  'Captured': '#AAAAAA',
+  'Comp': '#469CBE',
+  'DoD': '#D4AF37',
+  'SIT': '#FF9E1B',
+  'UAT': '#c4ff61',
+  'Done': '#7CC170',
+  'Blocked': '#ff4757',
   'Standing': '#FF9E1B',
-  'Deployed': '#c4ff61',
   'Active Tab': '#469CBE',
-  'Initiating': '#aaaaaa',
 };
 
 export default function StatusTab() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [issues, setIssues] = useState<Issue[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
   const [issuesLoading, setIssuesLoading] = useState(true);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>('');
@@ -60,8 +46,8 @@ export default function StatusTab() {
           status: d.status || null,
           description: d.description || null,
           current_ai: d.current_ai || null,
-          // Firestore Timestamp to ISO string
           last_active: d.last_active?.toDate ? d.last_active.toDate().toISOString().slice(0, 10) : (d.last_active || null),
+          created_at: d.created_at?.toDate ? d.created_at.toDate().toISOString().slice(0, 10) : null,
           github: d.github_repo || null,
           drive: d.drive_path || null,
           local: d.local_path || null,
@@ -70,7 +56,6 @@ export default function StatusTab() {
         } as Project;
       });
 
-      // Sort: standing -> active -> tab, then alphabetically
       const order: Record<string, number> = { standing: 0, active: 1, tab: 2 };
       const sorted = parsed.sort((a, b) => {
         const ao = order[a.category!] ?? 9;
@@ -86,7 +71,7 @@ export default function StatusTab() {
     return () => unsubscribe();
   }, []);
 
-  // ── Live issues from Firestore ────────────────────────────────────────────
+  // ── Live issues from Firestore ──
   useEffect(() => {
     const q = query(collection(firestore, 'issues'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -99,7 +84,17 @@ export default function StatusTab() {
     return () => unsubscribe();
   }, []);
 
-  // ── Derived data ──────────────────────────────────────────────────────────
+  // ── Live history from Firestore ──
+  useEffect(() => {
+    const q = query(collection(firestore, 'issue_history'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const parsed = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setHistory(parsed);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // ── Derived data ──
 
   // Helper to calculate remediation work points (#h3sJDtR8SiUIvjCgjlSV)
   const calculateWorkPoints = (iss: Issue) => {
@@ -115,63 +110,110 @@ export default function StatusTab() {
     return pts;
   };
 
-  // Per-project open issue counts (#ZKsdzd — live from Firestore SSOT)
   const issuesByProject = issues.reduce((acc, iss) => {
-    if (['Done', 'Closed', 'Parked'].includes(iss.status)) return acc;
+    if (['Done', 'Blocked'].includes(iss.status)) return acc;
     if (!acc[iss.project_slug]) acc[iss.project_slug] = { bugs: 0, enhancements: 0 };
     if (iss.type === 'bug') acc[iss.project_slug].bugs++;
     else acc[iss.project_slug].enhancements++;
     return acc;
   }, {} as Record<string, { bugs: number; enhancements: number }>);
 
-  // Global KPI counts (#kRWMiI)
-  const openIssues = issues.filter(i => !['Done', 'Closed', 'Parked'].includes(i.status));
+  const openIssues = issues.filter(i => !['Done', 'Blocked'].includes(i.status));
   const totalOpenBugs = openIssues.filter(i => i.type === 'bug').length;
   const totalOpenEnhs = openIssues.filter(i => i.type === 'enhancement').length;
   const totalBugsAll = issues.filter(i => i.type === 'bug').length;
   const totalEnhsAll = issues.filter(i => i.type === 'enhancement').length;
   const totalWorkUnits = issues.reduce((sum, iss) => sum + calculateWorkPoints(iss), 0);
 
-  // Issue graph data — CUMULATIVE progress (#a0oY7P)
+  // Issue graph data — Consolidated Cumulative Progress
   const graphData = (() => {
-    const byDate: Record<string, { date: string; bugs: number; enhancements: number; work: number }> = {};
+    const byDate: Record<string, { 
+      date: string; 
+      bugs: number; 
+      enhancements: number; 
+      projects: number; 
+      remediated: number; 
+      total_created: number;
+      work_points: number;
+    }> = {};
+    
+    const getDateStr = (val: any) => {
+      if (!val) return null;
+      if (typeof val === 'string') return val.slice(0, 10);
+      if (val.toDate) return val.toDate().toISOString().slice(0, 10);
+      if (val._seconds) return new Date(val._seconds * 1000).toISOString().slice(0, 10);
+      return null;
+    };
+
+    // 1. Process Issues (Creation)
     issues.forEach(iss => {
-      const ld = iss.logged_date as any;
-      const raw: string | null = typeof ld === 'string' ? ld
-        : (ld?.toDate ? ld.toDate().toISOString().slice(0, 10) : null)
-          ?? (iss.created_at?.toDate ? iss.created_at.toDate().toISOString().slice(0, 10) : null);
-      if (!raw) return;
-      const date = raw.slice(0, 10);
-      if (isNaN(new Date(date).getTime())) return;
-      
-      const workPts = calculateWorkPoints(iss);
-      
-      if (!byDate[date]) byDate[date] = { date, bugs: 0, enhancements: 0, work: 0 };
+      const date = getDateStr(iss.logged_date) ?? getDateStr(iss.created_at);
+      if (!date || isNaN(new Date(date).getTime())) return;
+      if (!byDate[date]) byDate[date] = { date, bugs: 0, enhancements: 0, projects: 0, remediated: 0, total_created: 0, work_points: 0 };
       if (iss.type === 'bug') byDate[date].bugs++;
       else byDate[date].enhancements++;
-      byDate[date].work += workPts;
+      byDate[date].total_created++;
+    });
+
+    // 2. Process History (Remediation Events & Work Units)
+    // For work points, we use the issue's updated_at or history timestamp
+    issues.forEach(iss => {
+      const workPts = calculateWorkPoints(iss);
+      if (workPts > 0) {
+        const date = getDateStr(iss.updated_at) ?? getDateStr(iss.created_at);
+        if (date && !isNaN(new Date(date).getTime())) {
+          if (!byDate[date]) byDate[date] = { date, bugs: 0, enhancements: 0, projects: 0, remediated: 0, total_created: 0, work_points: 0 };
+          byDate[date].work_points += workPts;
+        }
+      }
+    });
+
+    history.forEach(h => {
+      const statusChange = h.changes?.status;
+      if (statusChange && ['Done', 'Blocked', 'UAT'].includes(statusChange.new)) {
+        const date = getDateStr(h.timestamp);
+        if (date && !isNaN(new Date(date).getTime())) {
+          if (!byDate[date]) byDate[date] = { date, bugs: 0, enhancements: 0, projects: 0, remediated: 0, total_created: 0, work_points: 0 };
+          byDate[date].remediated++;
+        }
+      }
+    });
+
+    // 3. Process Projects (Creation)
+    projects.forEach(proj => {
+      const date = getDateStr(proj.created_at) ?? getDateStr(proj.last_active);
+      if (!date || isNaN(new Date(date).getTime())) return;
+      if (!byDate[date]) byDate[date] = { date, bugs: 0, enhancements: 0, projects: 0, remediated: 0, total_created: 0, work_points: 0 };
+      byDate[date].projects++;
     });
 
     const sortedDates = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
     
-    // Calculate cumulative totals
     let cumulativeBugs = 0;
     let cumulativeEnhs = 0;
-    let cumulativeWork = 0;
+    let cumulativeProjects = 0;
+    let cumulativeRemediated = 0;
+    let cumulativeTotalCreated = 0;
+    let cumulativeWorkPoints = 0;
     
     return sortedDates.map(d => {
       cumulativeBugs += d.bugs;
       cumulativeEnhs += d.enhancements;
-      cumulativeWork += d.work;
+      cumulativeProjects += d.projects;
+      cumulativeRemediated += d.remediated;
+      cumulativeTotalCreated += d.total_created;
+      cumulativeWorkPoints += d.work_points;
       
       const [y, m, day] = d.date.split('-').map(Number);
       const dateObj = new Date(y, m - 1, day);
       return {
         ...d,
-        bugs: cumulativeBugs,
-        enhancements: cumulativeEnhs,
-        total: cumulativeBugs + cumulativeEnhs,
-        remediation: cumulativeWork,
+        bugs_created: cumulativeBugs,
+        enh_created: cumulativeEnhs,
+        projects_created: cumulativeProjects,
+        remediated_count: cumulativeRemediated,
+        total_backlog: cumulativeTotalCreated,
+        remediation_effort: cumulativeWorkPoints,
         date: isNaN(dateObj.getTime()) 
           ? 'Unknown' 
           : dateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
@@ -179,17 +221,15 @@ export default function StatusTab() {
     });
   })();
 
-  // Filtered project list
   const filtered = projects.filter(p => {
     const matchSearch = !search
       || p.name.toLowerCase().includes(search.toLowerCase())
       || (p.description || '').toLowerCase().includes(search.toLowerCase());
     
-    // Metric filter logic
     let matchMetric = true;
     if (filterMetric === 'Bugs') matchMetric = (issuesByProject[p.name]?.bugs || 0) > 0;
     else if (filterMetric === 'Enhancements') matchMetric = (issuesByProject[p.name]?.enhancements || 0) > 0;
-    else if (filterMetric === 'Active') matchMetric = p.status === 'Active';
+    else if (filterMetric === 'Active') matchMetric = (p.status || '').includes('Active') || ['Captured', 'Comp', 'DoD', 'SIT', 'UAT'].includes(p.status || '');
     else if (filterMetric === 'Standing') matchMetric = p.status === 'Standing';
     else if (filterMetric === 'Active Tab') matchMetric = p.status === 'Active Tab';
 
@@ -201,62 +241,78 @@ export default function StatusTab() {
   return (
     <div className="status-tab">
 
-      {/* ── KPI Stats Strip (Interactive Filters) ── */}
-      <div className="status-stats-row">
+      <div className="status-stats-row" style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         {[
-          { label: 'All Projects', value: projects.length, type: 'All' },
-          { label: 'Active',       value: projects.filter(p => (p.status || '').includes('Active')).length, type: 'Active' },
-          { label: 'Standing',     value: projects.filter(p => p.status === 'Standing').length, type: 'Standing' },
-          { label: 'Tabs',         value: projects.filter(p => p.status === 'Active Tab').length, type: 'Active Tab' },
+          { label: 'Total Projects', value: projects.length, type: 'All' },
+          { label: 'Active',         value: projects.filter(p => (p.status || '').includes('Active') || ['Captured', 'Comp', 'DoD', 'SIT', 'UAT'].includes(p.status || '')).length, type: 'Active' },
+          { label: 'Standing',       value: projects.filter(p => p.status === 'Standing').length, type: 'Standing' },
+          { label: 'Tabs',           value: projects.filter(p => p.status === 'Active Tab').length, type: 'Active Tab' },
         ].map(s => (
           <button 
             key={s.label} 
-            className={`stat-card ${filterMetric === s.type ? 'active' : ''}`}
+            className={`stat-tile ${filterMetric === s.type ? 'selected' : ''}`}
+            style={{ flex: '1 1 140px', padding: '0.85rem 1rem', textAlign: 'left' }}
             onClick={() => {
               setFilterMetric(filterMetric === s.type ? 'All' : s.type as any);
               setFilterStatus('All');
             }}
           >
-            <div className="stat-num">{projectsLoading ? '…' : s.value}</div>
-            <div className="stat-label">{s.label}</div>
+            <div className="stat-number" style={{ fontSize: '1.4rem', fontWeight: 'bold', lineHeight: 1 }}>
+              {projectsLoading ? '…' : s.value}
+            </div>
+            <div className="stat-label" style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              {s.label}
+            </div>
           </button>
         ))}
         
         <button 
-          className={`stat-card stat-card--bug ${filterMetric === 'Bugs' ? 'active' : ''}`}
+          className={`stat-tile ${filterMetric === 'Bugs' ? 'selected' : ''}`}
+          style={{ flex: '1 1 160px', padding: '0.85rem 1rem', textAlign: 'left' }}
           onClick={() => {
             setFilterMetric(filterMetric === 'Bugs' ? 'All' : 'Bugs');
             setFilterStatus('All');
           }}
         >
-          <div className="stat-num">{issuesLoading ? '…' : totalOpenBugs}</div>
-          <div className="stat-label">🐛 Active Bugs</div>
-          {!issuesLoading && <div className="stat-sub">{totalOpenBugs} of {totalBugsAll} total</div>}
+          <div className="stat-number" style={{ fontSize: '1.4rem', fontWeight: 'bold', lineHeight: 1, color: '#FF6B6B' }}>
+            {issuesLoading ? '…' : totalOpenBugs} <span style={{fontSize: '0.8rem', fontWeight: 'normal'}}>filtered Bugs</span>
+          </div>
+          <div className="stat-label" style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            of {totalBugsAll} Total Bugs
+          </div>
         </button>
 
         <button 
-          className={`stat-card stat-card--enh ${filterMetric === 'Enhancements' ? 'active' : ''}`}
+          className={`stat-tile ${filterMetric === 'Enhancements' ? 'selected' : ''}`}
+          style={{ flex: '1 1 160px', padding: '0.85rem 1rem', textAlign: 'left' }}
           onClick={() => {
             setFilterMetric(filterMetric === 'Enhancements' ? 'All' : 'Enhancements');
             setFilterStatus('All');
           }}
         >
-          <div className="stat-num">{issuesLoading ? '…' : totalOpenEnhs}</div>
-          <div className="stat-label">🚀 Active Enhs</div>
-          {!issuesLoading && <div className="stat-sub">{totalOpenEnhs} of {totalEnhsAll} total</div>}
+          <div className="stat-number" style={{ fontSize: '1.4rem', fontWeight: 'bold', lineHeight: 1, color: 'var(--pmo-green)' }}>
+            {issuesLoading ? '…' : totalOpenEnhs} <span style={{fontSize: '0.8rem', fontWeight: 'normal'}}>filtered Enh.</span>
+          </div>
+          <div className="stat-label" style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            of {totalEnhsAll} Total Enh.
+          </div>
         </button>
 
         {/* New KPI: Remediation Effort (#h3sJDtR8SiUIvjCgjlSV) */}
         <button 
-          className={`stat-card stat-card--work ${filterMetric === 'Work' ? 'active' : ''}`}
+          className={`stat-tile ${filterMetric === 'Work' ? 'selected' : ''}`}
+          style={{ flex: '1 1 160px', padding: '0.85rem 1rem', textAlign: 'left' }}
           onClick={() => {
             setFilterMetric(filterMetric === 'Work' ? 'All' : 'Work');
             setFilterStatus('All');
           }}
         >
-          <div className="stat-num">{issuesLoading ? '…' : totalWorkUnits}</div>
-          <div className="stat-label">🛠 Remediation Units</div>
-          {!issuesLoading && <div className="stat-sub">Total verified effort points</div>}
+          <div className="stat-number" style={{ fontSize: '1.4rem', fontWeight: 'bold', lineHeight: 1, color: 'var(--pmo-gold)' }}>
+            {issuesLoading ? '…' : totalWorkUnits} <span style={{fontSize: '0.8rem', fontWeight: 'normal'}}>Units</span>
+          </div>
+          <div className="stat-label" style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Remediation Effort
+          </div>
         </button>
 
       </div>
@@ -296,20 +352,18 @@ export default function StatusTab() {
                 wrapperStyle={{ fontSize: '0.8rem', color: 'var(--text-secondary)', paddingTop: '15px' }} 
                 iconType="circle"
               />
-              {/* Total Backlog (Gold) */}
               <Line 
                 type="monotone" 
-                dataKey="total" 
+                dataKey="total_backlog" 
                 name="Total Backlog" 
                 stroke="var(--pmo-gold)" 
                 strokeWidth={3}
                 dot={{ fill: 'var(--pmo-gold)', r: 3 }}
                 activeDot={{ r: 6 }}
               />
-              {/* Remediation Effort (Green) */}
               <Line 
                 type="monotone" 
-                dataKey="remediation" 
+                dataKey="remediation_effort" 
                 name="Remediation Work (RU)" 
                 stroke="var(--pmo-green)" 
                 strokeWidth={4}
@@ -319,21 +373,27 @@ export default function StatusTab() {
               />
               <Line 
                 type="monotone" 
-                dataKey="bugs" 
-                name="Cumulative Bugs" 
-                stroke="#FF6B6B" 
+                dataKey="remediated_count" 
+                name="Remediated Issues" 
+                stroke="#7CC170" 
                 strokeWidth={2}
-                dot={{ fill: '#FF6B6B', r: 2 }}
-                activeDot={{ r: 4 }}
+                dot={false}
               />
               <Line 
                 type="monotone" 
-                dataKey="enhancements" 
+                dataKey="bugs_created" 
+                name="Cumulative Bugs" 
+                stroke="#FF6B6B" 
+                strokeWidth={2}
+                dot={false}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="enh_created" 
                 name="Cumulative Enhancements" 
                 stroke="#469CBE" 
                 strokeWidth={2}
-                dot={{ fill: '#469CBE', r: 2 }}
-                activeDot={{ r: 4 }}
+                dot={false}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -382,7 +442,6 @@ export default function StatusTab() {
                 <div className="project-meta">
                   {p.last_active && <span>🕐 {formatDate(p.last_active)}</span>}
                   {p.current_ai && <span>🤖 {p.current_ai}</span>}
-                  {/* Drive URL (#doCrHy — renders when drive_path starts with https://) */}
                   {p.drive?.startsWith('http') && (
                     <a className="meta-link" href={p.drive} target="_blank" rel="noreferrer">☁ Drive</a>
                   )}
@@ -395,7 +454,6 @@ export default function StatusTab() {
                   )}
                 </div>
 
-                {/* Live issue counts from Firestore (#ZKsdzd) */}
                 {!issuesLoading && (
                   <div className="project-issue-counts">
                     <span className={`issue-chip ${(liveCounts?.bugs || 0) > 0 ? 'issue-chip--bug' : 'issue-chip--zero'}`}>

@@ -1,3 +1,4 @@
+import { getStorage } from 'firebase/storage';
 import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
@@ -5,8 +6,6 @@ import { getFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 
 // hub-3pmo — canonical project (migrated 2026-03-24)
-// ROLLBACK: revert to thought-organizer-79aff config below if needed
-// Old config: { projectId: "thought-organizer-79aff", databaseURL: "https://thought-organizer-79aff-default-rtdb.europe-west1.firebasedatabase.app", ... }
 const firebaseConfig = {
   apiKey: "AIzaSyDZ7iBkAswYF0S-tIG4KzU1fAcx2N0ruN8",
   authDomain: "hub-3pmo.firebaseapp.com",
@@ -22,4 +21,5 @@ export const db         = getDatabase(app);
 export const firestore  = getFirestore(app);
 export const auth       = getAuth(app);
 export const functions  = getFunctions(app);
+export const storage    = getStorage(app);
 export default app;

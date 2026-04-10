@@ -4,8 +4,6 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ── PROJECTS collection ─────────────────────────────────────────────────
-    // AI may read and create. Updates may not change system fields.
-    // Nobody may delete.
     match /projects/{projectId} {
       allow read: if true;
 
@@ -24,8 +22,6 @@ service cloud.firestore {
     }
 
     // ── ISSUES collection ───────────────────────────────────────────────────
-    // AI may read, create, and update only permitted fields.
-    // No deletes ever.
     match /issues/{issueId} {
       allow read: if true;
 
@@ -36,34 +32,33 @@ service cloud.firestore {
           'priority', 'status', 'logged_date',
           'test_compile', 'test_dod', 'test_sit', 'test_uat'
         ]) &&
-        request.resource.data.title is string &&
-        request.resource.data.title.size() > 0 &&
-        request.resource.data.project_slug is string &&
-        request.resource.data.project_slug.size() > 0 &&
-        request.resource.data.type in ['bug', 'enhancement'] &&
-        request.resource.data.priority in ['P0', 'P1', 'P2', 'P3', 'P4'] &&
-        request.resource.data.status in ['Open', 'In Progress', 'UAT', 'Done', 'Parked'];
+        request.resource.data.status in ['Captured', 'Comp', 'DoD', 'SIT', 'UAT', 'Release', 'Done', 'Parked', 'Blocked'] &&
+        request.resource.data.priority in ['P0', 'P1', 'P2', 'P3', 'P4'];
 
-      // UPDATE: system/immutable fields must not change
+      // UPDATE: allow moving project and correcting context
       allow update: if
-        // These fields are set at create and must never change
-        request.resource.data.project_slug  == resource.data.project_slug &&
-        request.resource.data.title         == resource.data.title &&
-        request.resource.data.type          == resource.data.type &&
+        // Infrastructure fields MUST be immutable
         request.resource.data.logged_date   == resource.data.logged_date &&
         request.resource.data.created_at    == resource.data.created_at &&
         request.resource.data.created_by    == resource.data.created_by &&
-        // Status must be a valid value
-        request.resource.data.status in ['Open', 'In Progress', 'UAT', 'Done', 'Parked'] &&
-        // Priority must be a valid value
+        // Validations
+        request.resource.data.status in ['Captured', 'Comp', 'DoD', 'SIT', 'UAT', 'Release', 'Done', 'Parked', 'Blocked'] &&
         request.resource.data.priority in ['P0', 'P1', 'P2', 'P3', 'P4'];
 
       allow delete: if false;
     }
 
+    // ── HISTORY collection ──────────────────────────────────────────────────
+    match /history/{logId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if false;
+    }
+
     // ── Catch-all: deny everything else ────────────────────────────────────
     match /{document=**} {
-      allow read, write: if false;
+      allow read: if true;
+      allow write: if false;
     }
   }
 }

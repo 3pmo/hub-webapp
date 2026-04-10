@@ -223,24 +223,6 @@
     "updated_at": "2026-04-10T06:45:41.477Z"
   },
   {
-    "slug": "issue-tracker",
-    "name": "issue-tracker",
-    "status": "Active (Initiating)",
-    "description": "Centralised tab within 3pmo-hub that replaces per-project BACKLOG.md files with a live Firestore-backed database.",
-    "current_ai": "Antigravity",
-    "last_active": "2026-03-29",
-    "github": null,
-    "drive": "https://drive.google.com/drive/folders/184D7ReqTU6JGzLlyCuxskdBm2rVzy22g",
-    "local": null,
-    "deploy": null,
-    "backlog": "🐛 1 Bug | 🚀 6 Enhancements",
-    "active_item": null,
-    "parent_project_id": "3pmo-hub",
-    "tags": [],
-    "category": "tab",
-    "updated_at": "2026-03-29T15:02:31.923Z"
-  },
-  {
     "slug": "pairwise",
     "name": "pairwise",
     "status": "Active Tab",
@@ -275,6 +257,24 @@
     "tags": [],
     "category": "tab",
     "updated_at": "2026-03-28T13:16:49.072Z"
+  },
+  {
+    "slug": "issue-tracker",
+    "name": "issue-tracker",
+    "status": "Active (Standardizing V1.1)",
+    "description": null,
+    "current_ai": "AntiGravity",
+    "last_active": "2026-04-10",
+    "github": null,
+    "drive": null,
+    "local": null,
+    "deploy": null,
+    "backlog": "🐛 1 Bug | 🚀 6 Enhancements",
+    "active_item": null,
+    "parent_project_id": null,
+    "tags": [],
+    "category": null,
+    "updated_at": "2026-04-10T22:14:30.891Z"
   },
   {
     "slug": "status",

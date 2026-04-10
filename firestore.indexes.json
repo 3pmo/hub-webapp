@@ -1,0 +1,19 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "issue_history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "issue_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
