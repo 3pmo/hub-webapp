@@ -83,6 +83,17 @@ function getGaugeClass(pct: number): string {
   return pct > 80 ? 'danger' : pct > 50 ? 'warning' : 'success';
 }
 
+// Returns HH:MM:SS string until next 00:00 UTC
+function timeUntilUTCMidnight(): string {
+  const now = new Date();
+  const midnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  const diffMs = midnight.getTime() - now.getTime();
+  const h = Math.floor(diffMs / 3_600_000);
+  const m = Math.floor((diffMs % 3_600_000) / 60_000);
+  const s = Math.floor((diffMs % 60_000) / 1_000);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 // Build last N days of YYYY-MM-DD strings (oldest → newest)
 function lastNDays(n: number): string[] {
   const days: string[] = [];
@@ -92,6 +103,104 @@ function lastNDays(n: number): string[] {
     days.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
   }
   return days;
+}
+
+// ─── AI Advisor Panel ─────────────────────────────────────────────────────────
+
+interface AdvisorEntry {
+  name: string;
+  emoji: string;
+  color: string;
+  pctRemaining: number;
+  resetLabel: string;
+  taskGuidance: string;
+  hasData: boolean;
+}
+
+interface AIAdvisorPanelProps {
+  entries: AdvisorEntry[];
+  resetCountdown: string;
+}
+
+function AIAdvisorPanel({ entries, resetCountdown }: AIAdvisorPanelProps) {
+  const withData = entries.filter(e => e.hasData);
+  const best = withData.length > 0
+    ? withData.reduce((a, b) => a.pctRemaining > b.pctRemaining ? a : b)
+    : null;
+
+  const panelStyle: React.CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gap: '1rem',
+    marginTop: '1rem',
+  };
+
+  const chipStyle = (color: string, highlighted: boolean): React.CSSProperties => ({
+    background: highlighted ? `color-mix(in srgb, ${color} 15%, transparent)` : 'var(--bg-card)',
+    border: `1px solid ${highlighted ? color : 'var(--border-subtle)'}`,
+    borderRadius: 'var(--radius-md)',
+    padding: '0.85rem 1rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.35rem',
+    transition: 'var(--transition-fast)',
+    position: 'relative' as const,
+  });
+
+  return (
+    <div className="card" style={{ marginTop: '1rem', borderLeft: '4px solid var(--pmo-green)', padding: '1.25rem 1.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.9rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <h3 style={{ color: 'var(--pmo-green)', margin: 0, fontSize: 'var(--text-h3)' }}>
+          🤖 AI Advisor
+        </h3>
+        <span style={{ fontSize: '0.78rem', color: 'var(--pmo-slate)', fontFamily: 'monospace' }}>
+          Claude resets in <span style={{ color: 'var(--pmo-gold)', fontWeight: 'bold' }}>{resetCountdown}</span> UTC
+        </span>
+      </div>
+
+      {best && (
+        <div style={{ marginBottom: '0.9rem', padding: '0.6rem 0.9rem', background: 'rgba(124,193,112,0.08)', border: '1px solid var(--pmo-green)', borderRadius: 'var(--radius-md)', fontSize: '0.85rem' }}>
+          <span style={{ color: 'var(--pmo-slate)' }}>Best choice right now: </span>
+          <span style={{ color: best.color, fontWeight: 'bold' }}>{best.emoji} {best.name}</span>
+          <span style={{ color: 'var(--text-primary)' }}> — {best.pctRemaining.toFixed(0)}% capacity remaining · {best.taskGuidance}</span>
+        </div>
+      )}
+
+      {!best && (
+        <div style={{ marginBottom: '0.9rem', padding: '0.6rem 0.9rem', background: 'rgba(255,158,27,0.08)', border: '1px solid var(--pmo-gold)', borderRadius: 'var(--radius-md)', fontSize: '0.85rem', color: 'var(--pmo-gold)' }}>
+          ⚠️ No usage data yet — click <strong>Refresh Claude</strong> to load live data, or add a manual entry for Gemini/Antigravity.
+        </div>
+      )}
+
+      <div style={panelStyle}>
+        {entries.map(e => {
+          const isRecommended = best?.name === e.name;
+          return (
+            <div key={e.name} style={chipStyle(e.color, isRecommended)}>
+              {isRecommended && (
+                <span style={{ position: 'absolute', top: '-10px', right: '10px', background: e.color, color: '#000', fontSize: '0.65rem', fontWeight: 'bold', padding: '1px 7px', borderRadius: 'var(--radius-pill)' }}>
+                  RECOMMENDED
+                </span>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: e.color, fontWeight: 'bold', fontSize: '0.88rem' }}>{e.emoji} {e.name}</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--pmo-slate)' }}>{e.resetLabel}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ flex: 1, height: '4px', background: 'var(--border-subtle)', borderRadius: '2px', overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.max(0, Math.min(100, e.pctRemaining))}%`, height: '100%', background: e.pctRemaining > 40 ? e.color : '#ff4757', borderRadius: '2px', transition: 'width 0.4s ease' }} />
+                </div>
+                <span style={{ fontSize: '0.75rem', color: e.hasData ? 'var(--text-primary)' : 'var(--pmo-slate)', minWidth: '36px', textAlign: 'right' }}>
+                  {e.hasData ? `${e.pctRemaining.toFixed(0)}%` : '—'}
+                </span>
+              </div>
+              <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--pmo-slate)', lineHeight: 1.4 }}>{e.taskGuidance}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -355,6 +464,7 @@ export default function CostTrackerTab() {
   const [refreshError, setRefreshError] = useState('');
   const [refreshSuccess, setRefreshSuccess] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
+  const [resetCountdown, setResetCountdown] = useState(timeUntilUTCMidnight());
 
   // Subscribe to snapshot
   useEffect(() => {
@@ -408,6 +518,12 @@ export default function CostTrackerTab() {
     fetchChartData();
   }, []);
 
+  // Tick the reset countdown every second
+  useEffect(() => {
+    const timer = setInterval(() => setResetCountdown(timeUntilUTCMidnight()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Refresh Claude via Cloud Function
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -432,6 +548,56 @@ export default function CostTrackerTab() {
   if (loading) return <div className="loading">Initializing Spend Tracker…</div>;
 
   const { claude, gemini, antigravity } = snapshot || {};
+
+  // Build advisor entries
+  const claudePctRemaining = (() => {
+    const used = (claude?.input_tokens || 0) + (claude?.output_tokens || 0);
+    const limit = (claude?.limits?.daily_input || 700000) + (claude?.limits?.daily_output || 300000);
+    return limit > 0 ? Math.max(0, 100 - (used / limit) * 100) : 100;
+  })();
+  const geminiPctRemaining = (() => {
+    const used = (gemini?.input_tokens || 0) + (gemini?.output_tokens || 0);
+    const limit = (gemini?.limits?.daily_input || 1000000) + (gemini?.limits?.daily_output || 500000);
+    return limit > 0 ? Math.max(0, 100 - (used / limit) * 100) : 100;
+  })();
+  const agPctRemaining = (() => {
+    const used = antigravity
+      ? (antigravity.claude_input_tokens || 0) + (antigravity.claude_output_tokens || 0)
+        + (antigravity.gemini_input_tokens || 0) + (antigravity.gemini_output_tokens || 0)
+      : 0;
+    const limit = (antigravity?.limits?.daily_input || 500000) + (antigravity?.limits?.daily_output || 250000);
+    return limit > 0 ? Math.max(0, 100 - (used / limit) * 100) : 100;
+  })();
+
+  const advisorEntries: AdvisorEntry[] = [
+    {
+      name: 'Claude Pro',
+      emoji: '🟢',
+      color: 'var(--pmo-green)',
+      pctRemaining: claudePctRemaining,
+      resetLabel: `resets in ${resetCountdown}`,
+      taskGuidance: 'Complex coding, architecture, detailed analysis',
+      hasData: !!claude,
+    },
+    {
+      name: 'Gemini Pro',
+      emoji: '🟡',
+      color: 'var(--pmo-gold)',
+      pctRemaining: geminiPctRemaining,
+      resetLabel: 'manual entry',
+      taskGuidance: 'Large context windows, research, document processing',
+      hasData: !!gemini,
+    },
+    {
+      name: 'Antigravity',
+      emoji: '🟢',
+      color: 'var(--agy-lime)',
+      pctRemaining: agPctRemaining,
+      resetLabel: 'supplemental quota',
+      taskGuidance: 'Overflow tasks, mixed Claude+Gemini workloads',
+      hasData: !!antigravity,
+    },
+  ];
 
   const claudeUsed = (claude?.input_tokens || 0) + (claude?.output_tokens || 0);
   const claudeLimit = (claude?.limits?.daily_input || 700000) + (claude?.limits?.daily_output || 300000);
@@ -485,8 +651,11 @@ export default function CostTrackerTab() {
         </div>
       )}
 
+      {/* AI Advisor */}
+      <AIAdvisorPanel entries={advisorEntries} resetCountdown={resetCountdown} />
+
       {/* Provider Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginTop: '1.5rem' }}>
 
         {/* Claude */}
         {claude ? (

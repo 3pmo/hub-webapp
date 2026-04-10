@@ -22,8 +22,16 @@ const ANTHROPIC_ADMIN_KEY = defineSecret("ANTHROPIC_ADMIN_KEY");
  *
  * Called from Status tab refresh button via firebase.functions().httpsCallable('fetchClaudeUsage')
  */
+// NOTE: invoker: 'public' is required for Firebase Functions v2 onCall to allow
+// unauthenticated browser requests. Without it, Cloud Run returns 403 on the
+// CORS preflight (OPTIONS) before the function ever runs. This is a breaking
+// change from v1 where onCall was public by default.
+//
+// PREREQUISITE: Set the Anthropic Admin API key as a Firebase secret before deploying:
+//   firebase functions:secrets:set ANTHROPIC_ADMIN_KEY
+// Then deploy: firebase deploy --only functions
 exports.fetchClaudeUsage = onCall(
-    { secrets: [ANTHROPIC_ADMIN_KEY] },
+    { secrets: [ANTHROPIC_ADMIN_KEY], invoker: 'public' },
     async (request) => {
         const key = ANTHROPIC_ADMIN_KEY.value();
         if (!key) {
