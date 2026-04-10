@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { firestore } from '../services/firebase';
-import { collection, onSnapshot, query, orderBy, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { formatDate } from '../utils/formatDate';
+import { collection, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { issueService } from '../services/issue-service';
 import projects from '../assets/projects.json';
 
 export interface Issue {
@@ -11,46 +11,64 @@ export interface Issue {
   priority: 'P0' | 'P1' | 'P2' | 'P3' | 'P4';
   title: string;
   description: string;
-  status: 'Open' | 'In Progress' | 'UAT' | 'Done' | 'Parked';
+  status: 'Captured' | 'Comp' | 'DoD' | 'SIT' | 'UAT' | 'Release' | 'Done' | 'Parked' | 'Blocked';
   logged_date: string;
   test_compile: '⬜' | '✅' | 'N/A';
   test_dod: '⬜' | '✅' | 'N/A';
   test_sit: '⬜' | '✅' | 'N/A';
   test_uat: '⬜' | '✅' | 'N/A';
   dod_items?: { task: string; completed: boolean }[];
+  screenshots?: { url: string; name: string; timestamp: number }[];
+  screenshot_url?: string;  // Keep for backward compat
+  screenshot_name?: string; // Keep for backward compat
   created_at?: any;
   created_by?: string;
   updated_at?: any;
   updated_by?: string;
 }
+// Helper to format dates to 3PMO branded standard: DD MMM YY (e.g. 07 Apr 26)
+const formatBrandedDate = (dateInput: any) => {
+  if (!dateInput) return '-';
+  const date = dateInput.toDate ? dateInput.toDate() : new Date(dateInput);
+  if (isNaN(date.getTime())) return '-';
+  
+  const day = String(date.getDate()).padStart(2, '0');
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[date.getMonth()];
+  const year = String(date.getFullYear()).slice(-2);
+  
+  return `${day} ${month} ${year}`;
+};
 
 export default function IssueTrackerTab() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sortAsc, setSortAsc] = useState(true);
+  const [history, setHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   // Filters
   const [filterProject, setFilterProject] = useState<string>('All');
   const [filterType, setFilterType] = useState<string>('All');
-  const [filterStatus, setFilterStatus] = useState<string>('Open'); // Open = Not Done/Parked
+  const [filterPriority, setFilterPriority] = useState<string[]>(['P0', 'P1', 'P2', 'P3', 'P4']);
+  const [filterStatus, setFilterStatus] = useState<string>('Active'); // Active = Captured, Comp, DoD, SIT, UAT
   const [searchText, setSearchText] = useState('');
   const [searchId, setSearchId] = useState('');
 
   // Sort
   const [sortField, setSortField] = useState<'status' | 'priority' | 'project_slug' | 'updated_at'>('priority');
-  const [sortAsc, setSortAsc] = useState(true);
-
-  const resetFilters = () => {
-    setFilterProject('All');
-    setFilterType('All');
-    setFilterStatus('Open');
-    setSearchText('');
-    setSearchId('');
-  };
 
 
   // Form / Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
+  const [identity, setIdentity] = useState<string>('user');
+
+  // Detect AI identity if provided by environment/session
+  useEffect(() => {
+    const savedIdentity = localStorage.getItem('issue_tracker_identity') || 'user';
+    setIdentity(savedIdentity);
+  }, []);
   const [editingDoDIdx, setEditingDoDIdx] = useState<number | null>(null);
   const [voiceField, setVoiceField] = useState<'title' | 'description' | null>(null);
   const [formData, setFormData] = useState<Partial<Issue>>({
@@ -59,16 +77,45 @@ export default function IssueTrackerTab() {
     project_slug: '',
     type: undefined,
     priority: 'P4',
-    status: 'Open',
+    status: 'Captured',
     test_compile: '⬜',
     test_dod: '⬜',
     test_sit: '⬜',
     test_uat: '⬜',
-    dod_items: []
+    dod_items: [],
+    screenshots: []
   });
 
   // Track last description/title that triggered AI DoD to avoid unnecessary repeats
   const lastProcessedContent = useRef('');
+
+  // Autosave formData to localStorage
+  useEffect(() => {
+    if (isModalOpen && !loading) {
+      localStorage.setItem('issue_tracker_autosave', JSON.stringify({
+        formData,
+        editingIssueId: editingIssue?.id || null
+      }));
+    }
+  }, [formData, isModalOpen, loading, editingIssue]);
+
+  // Load autosave on open
+  useEffect(() => {
+    if (isModalOpen) {
+      const saved = localStorage.getItem('issue_tracker_autosave');
+      if (saved) {
+        try {
+          const { formData: savedData, editingIssueId } = JSON.parse(saved);
+          // Only restore if it's the same issue or both are new
+          if (editingIssueId === (editingIssue?.id || null)) {
+            setFormData(prev => ({ ...prev, ...savedData }));
+          }
+        } catch (e) {
+          console.error("Autosave load error", e);
+        }
+      }
+    }
+  }, [isModalOpen]); // Only on open
 
 
   // Voice capture using Web Speech API
@@ -96,7 +143,19 @@ export default function IssueTrackerTab() {
   };
 
   useEffect(() => {
-    const q = query(collection(firestore, 'issues'), orderBy('created_at', 'desc'));
+    if (editingIssue) {
+      setLoadingHistory(true);
+      issueService.getHistory(editingIssue.id)
+        .then(setHistory)
+        .catch(err => console.error("History fetch error:", err))
+        .finally(() => setLoadingHistory(false));
+    } else {
+      setHistory([]);
+    }
+  }, [editingIssue]);
+
+  useEffect(() => {
+    const q = query(collection(firestore, 'issues'), orderBy('updated_at', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const parsed: Issue[] = [];
       snapshot.forEach(doc => {
@@ -110,24 +169,39 @@ export default function IssueTrackerTab() {
 
   // Pre-type-filter: used for stat tile counts (project + status only)
   const preTypeFiltered = issues.filter(iss => {
-    if (filterProject !== 'All' && (iss.project_slug || '') !== filterProject) return false;
-    if (filterStatus === 'Open') {
-      if (['Done', 'Parked'].includes(iss.status || '')) return false;
+    // Normalize project slug comparison to handle 'issue tracker' vs 'issue-tracker'
+    if (filterProject !== 'All') {
+      const p = (iss.project_slug || '').replace(/\s+/g, '-').toLowerCase();
+      const fp = filterProject.replace(/\s+/g, '-').toLowerCase();
+      if (p !== fp) return false;
+    }
+    
+    if (filterStatus === 'Active') {
+      if (['Done', 'Parked', 'Blocked', 'Release'].includes(iss.status || '')) return false;
+    } else if (filterStatus === 'Test') {
+      if (!['Comp', 'DoD', 'SIT', 'UAT', 'Release'].includes(iss.status || '')) return false;
+    } else if (filterStatus === 'AI Test') {
+      if (!['Comp', 'DoD', 'SIT'].includes(iss.status || '')) return false;
+    } else if (filterStatus === 'Remediated') {
+      if (!['Done', 'Parked'].includes(iss.status || '')) return false;
     } else if (filterStatus !== 'All' && (iss.status || '') !== filterStatus) {
       return false;
     }
     return true;
   });
 
-  // Full filter (including type + search)
+  // Full filter (including type + priority + search)
   const filteredIssues = preTypeFiltered.filter(iss => {
     if (filterType !== 'All' && (iss.type || '') !== filterType) return false;
+    if (!filterPriority.includes(iss.priority)) return false;
     if (searchId.trim()) {
       if (!(iss.id || '').toLowerCase().includes(searchId.trim().toLowerCase())) return false;
     }
     if (searchText.trim()) {
       const q = searchText.trim().toLowerCase();
-      const match = (iss.title || '').toLowerCase().includes(q) || (iss.description || '').toLowerCase().includes(q);
+      const match = (iss.title || '').toLowerCase().includes(q) || 
+                    (iss.description || '').toLowerCase().includes(q) ||
+                    (iss.project_slug || '').toLowerCase().includes(q);
       if (!match) return false;
     }
     return true;
@@ -136,10 +210,12 @@ export default function IssueTrackerTab() {
   // Stat tile counts
   const bugCount = preTypeFiltered.filter(i => i.type === 'bug').length;
   const enhCount = preTypeFiltered.filter(i => i.type === 'enhancement').length;
+  const totalBugCount = issues.filter(i => i.type === 'bug').length;
+  const totalEnhCount = issues.filter(i => i.type === 'enhancement').length;
 
   // Sort Logic
   const sortedIssues = [...filteredIssues].sort((a, b) => {
-    const statusOrder: Record<string, number> = { 'Open': 1, 'In Progress': 2, 'UAT': 3, 'Done': 4, 'Parked': 5 };
+    const statusOrder: Record<string, number> = { 'Captured': 1, 'Comp': 2, 'DoD': 3, 'SIT': 4, 'UAT': 5, 'Release': 6, 'Done': 7, 'Parked': 8, 'Blocked': 9 };
     const priorityOrder: Record<string, number> = { 'P0': 1, 'P1': 2, 'P2': 3, 'P3': 4, 'P4': 5 };
 
     let valA: any = a[sortField] || '';
@@ -173,8 +249,12 @@ export default function IssueTrackerTab() {
     return sortAsc ? result : -result;
   });
 
-  // Unique projects for dropdown
-  const uniqueProjects = Array.from(new Set(issues.map(i => i.project_slug))).sort();
+  // Unique projects for dropdown, ensuring '3pmo-hub' and 'issue-tracker' are always present and normalized
+  const uniqueProjects = Array.from(new Set([
+    ...issues.map(i => (i.project_slug || '').replace(/\s+/g, '-').toLowerCase()),
+    '3pmo-hub',
+    'issue-tracker'
+  ].filter(Boolean))).sort();
 
   const handleLogIssue = () => {
     setEditingIssue(null);
@@ -185,7 +265,7 @@ export default function IssueTrackerTab() {
       project_slug: filterProject !== 'All' ? filterProject : '',
       type: undefined,   // must be selected
       priority: 'P4',
-      status: 'Open',
+      status: 'Captured',
       test_compile: '⬜',
       test_dod: '⬜',
       test_sit: '⬜',
@@ -211,16 +291,23 @@ export default function IssueTrackerTab() {
     const cycle: Record<string, '⬜' | '✅' | 'N/A'> = { '⬜': '✅', '✅': 'N/A', 'N/A': '⬜' };
     const newValue = cycle[formData[field] || '⬜'];
 
+    // AI GATE ENFORCEMENT: Block AI from marking UAT
+    if (field === 'test_uat' && newValue === '✅' && identity !== 'user') {
+      alert("AI ERROR: Manual UAT Gate. You cannot mark UAT without explicit approval in chat.");
+      return;
+    }
+
     setFormData(prev => {
       const updated = { ...prev, [field]: newValue };
-      // Auto-transition: Compile ✅ → In Progress
-      if (field === 'test_compile' && newValue === '✅' && prev.status === 'Open') {
-        updated.status = 'In Progress';
+      
+      // Auto-transitions based on test cycles
+      if (newValue === '✅') {
+        if (field === 'test_compile') updated.status = 'Comp';
+        if (field === 'test_dod')     updated.status = 'DoD';
+        if (field === 'test_sit')     updated.status = 'SIT';
+        if (field === 'test_uat')     updated.status = 'UAT';
       }
-      // Auto-transition: SIT ✅ → UAT
-      if (field === 'test_sit' && newValue === '✅' && prev.status === 'In Progress') {
-        updated.status = 'UAT';
-      }
+      
       return updated;
     });
   };
@@ -244,7 +331,7 @@ export default function IssueTrackerTab() {
   const handleAddDoD = () => {
     setFormData(prev => ({
       ...prev,
-      dod_items: [...(prev.dod_items || []), { task: 'New task', completed: false }]
+      dod_items: [...(prev.dod_items || []), { task: '', completed: false }]
     }));
     // Auto-open edit for the new item
     const newIdx = (formData.dod_items || []).length;
@@ -329,46 +416,77 @@ export default function IssueTrackerTab() {
     });
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editingIssue) return;
+    
+    try {
+      const screenshot = await issueService.uploadScreenshot(editingIssue.id, file);
+      setFormData(prev => ({ 
+        ...prev, 
+        screenshots: [...(prev.screenshots || []), screenshot] 
+      }));
+    } catch (err: any) {
+      alert(`Upload failed: ${err.message}`);
+    }
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData.items;
+    if (!editingIssue) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          try {
+            const screenshot = await issueService.uploadScreenshot(editingIssue.id, file);
+            setFormData(prev => ({ 
+              ...prev, 
+              screenshots: [...(prev.screenshots || []), screenshot] 
+            }));
+          } catch (err: any) {
+            console.error("Paste upload failed:", err);
+          }
+        }
+      }
+    }
+  };
+
+  const handleRemoveScreenshot = (timestamp: number) => {
+    setFormData(prev => ({
+      ...prev,
+      screenshots: (prev.screenshots || []).filter(s => s.timestamp !== timestamp)
+    }));
+  };
+
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // AI GATE ENFORCEMENT: Block AI from marking Done or Parked
+    if (identity !== 'user' && (formData.status === 'Done' || formData.status === 'Parked')) {
+      alert(`AI ERROR: Final status gate. You cannot set status to ${formData.status} without explicit approval.`);
+      return;
+    }
     
     // 1. Prepare base data with metadata
+    const { id, ...cleanData } = formData as any; // Extract ID so we don't save it as a document field
     const data = {
-      ...formData,
+      ...cleanData,
       updated_at: serverTimestamp(),
-      updated_by: 'user'
+      updated_by: identity
     };
 
     try {
       if (editingIssue) {
-        // 2. UPDATE: Only send mutable fields to avoid rules violations on immutable fields
-        const updatePayload = {
-          project_slug: data.project_slug,
-          title: data.title,
-          description: data.description,
-          status: data.status,
-          priority: data.priority,
-          test_compile: data.test_compile,
-          test_dod: data.test_dod,
-          test_sit: data.test_sit,
-          test_uat: data.test_uat,
-          dod_items: data.dod_items || [],
-          updated_at: serverTimestamp(),
-          updated_by: 'user'
-        };
-        
-        const docRef = doc(firestore, 'issues', editingIssue.id);
-        await updateDoc(docRef, updatePayload as any);
+        // Use the centralized service for Sparse Update + Log
+        await issueService.updateIssue(editingIssue.id, data as any, identity as any);
       } else {
-        // 3. CREATE: Include all mandatory fields
-        await addDoc(collection(firestore, 'issues'), {
-          ...data,
-          created_at: serverTimestamp(),
-          created_by: 'user',
-          logged_date: new Date().toISOString().split('T')[0]
-        });
+        // Use the centralized service for Create
+        await issueService.createIssue(data as any, identity as any);
       }
+      localStorage.removeItem('issue_tracker_autosave');
       setIsModalOpen(false);
     } catch (err: any) {
       console.error("Error saving issue:", err);
@@ -378,128 +496,157 @@ export default function IssueTrackerTab() {
 
   const getStatusClass = (status: string) => {
     if (status === 'Done') return 'success';
-    if (status === 'Parked') return 'inactive';
-    if (status === 'In Progress') return 'warning';
-    if (status === 'UAT') return 'warning';
-    return 'danger';
+    if (status === 'Blocked') return 'inactive';
+    if (['Comp', 'DoD', 'SIT', 'UAT'].includes(status)) return 'warning';
+    return 'danger'; // Captured
   };
 
   if (loading) return <div className="loading">Loading Issues...</div>;
 
   return (
     <div className="issue-tracker-tab">
-      <div className="tab-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <p className="tab-section-desc">
-          Centralized tracking of all bugs and enhancements across projects.
-        </p>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button className="btn-primary" onClick={handleLogIssue} style={{ minWidth: '150px' }}>
-            ＋ Log Issue
-          </button>
+      <div className="tab-section-header flex-between p-md">
+        <div>
+          <h2 style={{ margin: 0 }}>Issue Tracker</h2>
+          <p className="tab-section-desc">
+            Centralized tracking of all bugs and enhancements across active projects.
+          </p>
+        </div>
+        <button className="btn-primary" onClick={handleLogIssue} style={{ minWidth: '150px' }}>
+          ＋ Log Issue
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+        <div
+          onClick={() => {
+            setFilterType('All');
+            setFilterPriority(['All']);
+            setSearchText('');
+            setSearchId('');
+            setFilterProject('All');
+          }}
+          className={`stat-tile ${filterType === 'All' && filterPriority.length >= 5 ? 'selected' : ''}`}
+        >
+          <div className="p-md">
+            <div className="stat-number">{filteredIssues.length}</div>
+            <div className="stat-label">Filtered Issues</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '4px' }}>of {issues.length} total</div>
+          </div>
+        </div>
+
+        <div
+          onClick={() => setFilterType(filterType === 'bug' ? 'All' : 'bug')}
+          className={`stat-tile ${filterType === 'bug' ? 'selected' : ''}`}
+        >
+          <div className="p-md">
+            <div className="stat-number">{bugCount}</div>
+            <div className="stat-label">Filtered Bugs</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '4px' }}>of {totalBugCount} total</div>
+          </div>
+        </div>
+
+        <div
+          onClick={() => setFilterType(filterType === 'enhancement' ? 'All' : 'enhancement')}
+          className={`stat-tile ${filterType === 'enhancement' ? 'selected' : ''}`}
+        >
+          <div className="p-md">
+            <div className="stat-number">{enhCount}</div>
+            <div className="stat-label">Filtered Enh.</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '4px' }}>of {totalEnhCount} total</div>
+          </div>
         </div>
       </div>
 
-      {/* ── Stat Tiles ── */}
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-        <button
-          onClick={() => setFilterType('All')}
-          style={{
-            flex: '1 1 120px',
-            padding: '0.85rem 1rem',
-            background: filterType === 'All' ? 'var(--pmo-gold-20, rgba(212,175,55,0.15))' : 'var(--bg-card)',
-            color: filterType === 'All' ? 'var(--pmo-gold)' : 'var(--text-primary)',
-            border: `1px solid ${filterType === 'All' ? 'var(--pmo-gold)' : 'var(--border-subtle)'}`,
-            borderRadius: '6px', cursor: 'pointer', textAlign: 'left' as const, transition: 'all 0.15s ease'
-          }}
-        >
-          <div style={{ fontSize: '1.4rem', fontWeight: 'bold', lineHeight: 1 }}>{filteredIssues.length} / {issues.length}</div>
-          <div style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            {filterType === 'All' && filterProject === 'All' && filterStatus === 'Open' && !searchText && !searchId ? 'Total Active' : 'Filtered / Total'}
-          </div>
-        </button>
-        <button
-          onClick={() => setFilterType(filterType === 'bug' ? 'All' : 'bug')}
-          style={{
-            flex: '1 1 120px', padding: '0.75rem 1rem',
-            background: filterType === 'bug' ? '#ff475720' : 'var(--bg-card)',
-            color: filterType === 'bug' ? '#ff4757' : 'var(--text-primary)',
-            border: `1px solid ${filterType === 'bug' ? '#ff4757' : 'var(--border-subtle)'}`,
-            borderRadius: '6px', cursor: 'pointer', textAlign: 'left' as const, transition: 'all 0.15s ease'
-          }}
-        >
-          <div style={{ fontSize: '1.6rem', fontWeight: 'bold', lineHeight: 1 }}>{bugCount}</div>
-          <div style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: '2px' }}>🐛 Bugs</div>
-        </button>
-        <button
-          onClick={() => setFilterType(filterType === 'enhancement' ? 'All' : 'enhancement')}
-          style={{
-            flex: '1 1 120px', padding: '0.75rem 1rem',
-            background: filterType === 'enhancement' ? 'var(--pmo-green, #7CC17020)' : 'var(--bg-card)',
-            color: filterType === 'enhancement' ? 'var(--pmo-green, #7CC170)' : 'var(--text-primary)',
-            border: `1px solid ${filterType === 'enhancement' ? 'var(--pmo-green, #7CC170)' : 'var(--border-subtle)'}`,
-            borderRadius: '6px', cursor: 'pointer', textAlign: 'left' as const, transition: 'all 0.15s ease'
-          }}
-        >
-          <div style={{ fontSize: '1.6rem', fontWeight: 'bold', lineHeight: 1 }}>{enhCount}</div>
-          <div style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: '2px' }}>🚀 Enhancements</div>
-        </button>
-      </div>
+
 
       {/* ── Filters ── */}
-      <div className="card" style={{ padding: '1.25rem', marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end', position: 'relative' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '2 1 200px' }}>
-          <label style={{ fontSize: '0.85rem', color: searchText ? 'var(--pmo-gold)' : 'var(--pmo-slate)', fontWeight: 'bold' }}>🔍 Search</label>
+      <div className="card" style={{ padding: '1.25rem', marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div style={{ flex: '2 1 200px' }}>
+          <label className="stat-label" style={{ marginBottom: '4px', display: 'block' }}>🔍 Search</label>
           <input
-            className={`filter-input ${searchText ? 'active' : ''}`}
-            style={{ padding: '0.4rem 0.6rem', borderRadius: '4px', border: searchText ? '1px solid var(--pmo-gold)' : '1px solid var(--border-subtle)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
-            placeholder="Filter by title or description..."
+            className="field-input"
+            style={{ width: '100%' }}
+            placeholder="Search title or description..."
             value={searchText}
             onChange={e => setSearchText(e.target.value)}
           />
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 150px' }}>
-          <label style={{ fontSize: '0.85rem', color: searchId ? 'var(--pmo-gold)' : 'var(--pmo-slate)', fontWeight: 'bold' }}>🪪 Issue ID</label>
+        
+        <div style={{ flex: '1 1 120px' }}>
+          <label className="stat-label" style={{ marginBottom: '4px', display: 'block' }}>🪪 ID</label>
           <input
-            className={`filter-input ${searchId ? 'active' : ''}`}
-            style={{ padding: '0.4rem 0.6rem', borderRadius: '4px', border: searchId ? '1px solid var(--pmo-gold)' : '1px solid var(--border-subtle)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '0.9rem', fontFamily: 'monospace' }}
-            placeholder="Paste partial ID..."
+            className="field-input"
+            style={{ width: '100%', fontFamily: 'monospace' }}
+            placeholder="Partial ID..."
             value={searchId}
             onChange={e => setSearchId(e.target.value)}
           />
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <label style={{ fontSize: '0.85rem', color: filterProject !== 'All' ? 'var(--pmo-gold)' : 'var(--pmo-slate)', fontWeight: 'bold' }}>Project</label>
-          <select className={`filter-select ${filterProject !== 'All' ? 'active' : ''}`} value={filterProject} onChange={e => setFilterProject(e.target.value)} style={{ padding: '0.4rem', borderRadius: '4px', border: filterProject !== 'All' ? '1px solid var(--pmo-gold)' : '1px solid var(--border-subtle)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+
+        <div>
+          <label className="stat-label" style={{ marginBottom: '4px', display: 'block' }}>Project</label>
+          <select className="field-select" value={filterProject} onChange={e => setFilterProject(e.target.value)}>
             <option value="All">All Projects</option>
             {uniqueProjects.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <label style={{ fontSize: '0.85rem', color: filterType !== 'All' ? 'var(--pmo-gold)' : 'var(--pmo-slate)', fontWeight: 'bold' }}>Type</label>
-          <select className={`filter-select ${filterType !== 'All' ? 'active' : ''}`} value={filterType} onChange={e => setFilterType(e.target.value)} style={{ padding: '0.4rem', borderRadius: '4px', border: filterType !== 'All' ? '1px solid var(--pmo-gold)' : '1px solid var(--border-subtle)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
-            <option value="All">All Types</option>
-            <option value="bug">Bug</option>
-            <option value="enhancement">Enhancement</option>
-          </select>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <label style={{ fontSize: '0.85rem', color: filterStatus !== 'Open' ? 'var(--pmo-gold)' : 'var(--pmo-slate)', fontWeight: 'bold' }}>Status</label>
-          <select className={`filter-select ${filterStatus !== 'Open' ? 'active' : ''}`} value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ padding: '0.4rem', borderRadius: '4px', border: filterStatus !== 'Open' ? '1px solid var(--pmo-gold)' : '1px solid var(--border-subtle)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+
+        <div>
+          <label className="stat-label" style={{ marginBottom: '4px', display: 'block' }}>Status Group</label>
+          <select className="field-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+            <option value="Active">Active</option>
+            <option value="Test">Test</option>
+            <option value="AI Test">AI Test</option>
+            <option value="Remediated">Remediated</option>
             <option value="All">All Statuses</option>
-            <option value="Open">Active (excl. Done/Parked)</option>
-            <option value="In Progress">In Progress</option>
-            <option value="UAT">UAT</option>
-            <option value="Done">Done</option>
-            <option value="Parked">Parked</option>
+            <option disabled>──────</option>
+            {['Captured', 'Comp', 'DoD', 'SIT', 'UAT', 'Release', 'Done', 'Parked', 'Blocked'].map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
           </select>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <label style={{ fontSize: '0.85rem', color: 'var(--pmo-slate)', fontWeight: 'bold' }}>Sort By</label>
-          <select className="filter-select" value={`${sortField}-${sortAsc}`} onChange={e => {
+
+        <div style={{ flex: '1 1 180px' }}>
+          <label className="stat-label" style={{ marginBottom: '4px', display: 'block' }}>Priority</label>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {['P0', 'P1', 'P2', 'P3', 'P4'].map(p => {
+              const isActive = filterPriority.includes(p);
+              return (
+                <button
+                  key={p}
+                  onClick={() => {
+                    let next = [...filterPriority];
+                    if (isActive) {
+                      next = next.filter(x => x !== p);
+                    } else {
+                      next.push(p);
+                    }
+                    setFilterPriority(next);
+                  }}
+                  className={`btn-ghost selected-indicator ${isActive ? 'active' : ''}`}
+                  style={{ 
+                    padding: '4px 10px', 
+                    fontSize: '0.75rem', 
+                    minWidth: '40px',
+                    fontWeight: isActive ? 'bold' : 'normal',
+                    color: isActive ? 'var(--text-primary)' : 'var(--pmo-slate)'
+                  }}
+                >
+                  {p}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <label className="stat-label" style={{ marginBottom: '4px', display: 'block' }}>Sort</label>
+          <select className="field-select" value={`${sortField}-${sortAsc}`} onChange={e => {
             const [f, a] = e.target.value.split('-');
             setSortField(f as any);
             setSortAsc(a === 'true');
-          }} style={{ padding: '0.4rem', borderRadius: '4px', border: '1px solid var(--border-subtle)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+          }}>
             <option value="priority-true">Priority (P0 → P4)</option>
             <option value="status-true">Status</option>
             <option value="priority-false">Priority (P4 → P0)</option>
@@ -507,115 +654,125 @@ export default function IssueTrackerTab() {
             <option value="updated_at-false">Recently Updated</option>
           </select>
         </div>
-        
-        {(filterProject !== 'All' || filterType !== 'All' || filterStatus !== 'Open' || searchText || searchId) && (
-          <button 
-            className="btn-text" 
-            onClick={resetFilters}
-            style={{ 
-              padding: '0.4rem 0.75rem', 
-              fontSize: '0.85rem', 
-              color: 'var(--pmo-gold)',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              border: 'none',
-              background: 'none',
-              textDecoration: 'underline',
-              marginLeft: 'auto'
-            }}
-          >
-            Clear Filters
-          </button>
-        )}
       </div>
 
-      {/* ── Issue Cards ── */}
-      <div className="issue-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1, overflowY: 'auto', paddingBottom: '1rem' }}>
+      {/* ── Issue List ── */}
+      <div className="issue-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1, overflowY: 'auto', paddingBottom: '1.5rem' }}>
         {sortedIssues.length === 0 ? (
-          <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--pmo-slate)' }}>
-            No issues match the current filters.
+          <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-dim)', fontStyle: 'italic' }}>
+            No issues found matching the criteria.
           </div>
-        ) : sortedIssues.map(issue => (
-          <div
-            key={issue.id}
-            onClick={() => handleRowClick(issue)}
-            className="card clickable-row"
-            style={{
-              padding: '1.25rem',
-              cursor: 'pointer',
-              borderLeft: `4px solid ${
-                issue.priority === 'P0' ? '#ff4757' :
-                issue.priority === 'P1' ? 'var(--pmo-gold)' :
-                'var(--border-subtle)'
-              }`
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.4rem' }}>
-                  <span style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--pmo-slate)' }}>#{issue.id}</span>
-                  <span style={{ color: 'var(--pmo-gold)', fontWeight: 'bold' }}>{issue.project_slug}</span>
-                  <span className={`status-badge ${issue.type === 'bug' ? 'danger' : 'success'}`} style={{ padding: '0.15rem 0.5rem', fontSize: '0.7rem' }}>
-                    {issue.type === 'bug' ? 'Bug' : 'Enh'}
-                  </span>
-                  <span style={{
-                    fontSize: '0.85rem', fontWeight: 'bold',
-                    color: issue.priority === 'P0' ? '#ff4757' : issue.priority === 'P1' ? 'var(--pmo-gold)' : 'var(--text-primary)'
-                  }}>
-                    {issue.priority}
-                  </span>
+        ) : (
+          sortedIssues.map(issue => {
+            const isBug = issue.type === 'bug';
+            const statusClass = getStatusClass(issue.status);
+            
+            return (
+              <div 
+                key={issue.id} 
+                className="card p-md clickable-row"
+                style={{ 
+                  borderLeft: `3px solid ${issue.priority === 'P0' ? '#ff4757' : issue.priority === 'P1' ? 'var(--pmo-gold)' : 'transparent'}`,
+                  transition: 'transform 0.15s ease'
+                }}
+                onClick={(e) => {
+                  if ((e.target as HTMLElement).tagName !== 'SELECT' && (e.target as HTMLElement).tagName !== 'BUTTON') {
+                    handleRowClick(issue);
+                  }
+                }}
+              >
+                <div className="flex-between" style={{ marginBottom: '8px', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                      <span className={`status-badge ${isBug ? 'urgent' : 'warning'}`} style={{ fontSize: '0.65rem' }}>
+                        {isBug ? 'BUG' : 'ENH'}
+                      </span>
+                      <span style={{ color: 'var(--pmo-gold)', fontSize: '0.75rem', fontWeight: 'bold' }}>{issue.priority}</span>
+                      <span style={{ color: 'var(--text-dim)', fontSize: '0.7rem', fontFamily: 'monospace' }}>#{issue.id?.substring(0, 5)}</span>
+                      <span className="status-badge ghost" style={{ fontSize: '0.7rem' }}>{issue.project_slug}</span>
+                    </div>
+                    <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text-primary)' }}>{issue.title}</h3>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                    <select 
+                      className={`status-badge ${statusClass}`}
+                      style={{ 
+                        padding: '2px 8px', 
+                        fontSize: '0.7rem', 
+                        height: '24px', 
+                        width: 'auto',
+                        cursor: 'pointer',
+                        border: '1px solid rgba(255,255,255,0.1)'
+                      }}
+                      value={issue.status}
+                      onChange={async (e) => {
+                        const newStatus = e.target.value as any;
+                        if (identity !== 'user' && (newStatus === 'Done' || newStatus === 'Parked')) {
+                          alert("AI ERROR: Final status gate. Manual approval required.");
+                          return;
+                        }
+                        try {
+                          await issueService.updateIssue(issue.id!, { status: newStatus }, identity as any);
+                        } catch (err: any) {
+                          alert(`Failed to update status: ${err.message}`);
+                        }
+                      }}
+                      onClick={e => e.stopPropagation()}
+                    >
+                       {['Captured', 'Comp', 'DoD', 'SIT', 'UAT', 'Release', 'Done', 'Parked', 'Blocked'].map(s => (
+                        <option key={s} value={s} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>{s}</option>
+                       ))}
+                    </select>
+                    
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      {['test_compile', 'test_dod', 'test_sit', 'test_uat'].map(k => (
+                        <span key={k} style={{ 
+                          fontSize: '0.9rem', 
+                          opacity: (issue as any)[k] === '✅' ? 1 : 0.2,
+                          filter: (issue as any)[k] === '✅' ? 'none' : 'grayscale(1)'
+                        }}>
+                          {(issue as any)[k] === '✅' ? '✅' : '⬜'}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                <h4 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)' }}>{issue.title}</h4>
-              </div>
-              <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
-                <span className={`status-badge ${getStatusClass(issue.status)}`} style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}>
-                  {issue.status}
-                </span>
-                <div style={{ display: 'flex', gap: '4px', fontSize: '1.1rem' }}>
-                  <span title="Pass Criteria: Build, Lint, or Syntax passes (0 errors, 0 warnings).">{issue.test_compile}</span>
-                  <span title="Pass Criteria: AI confirms all items in Description and DoD Checklist are implemented." style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                    {issue.test_dod}
+
+                <p style={{ 
+                  margin: '0 0 12px', 
+                  fontSize: '0.88rem', 
+                  color: 'var(--text-dim)', 
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  lineHeight: '1.4'
+                }}>
+                  {issue.description || 'No additional details provided.'}
+                </p>
+
+                <div className="flex-between" style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '8px' }}>
+                  <div style={{ display: 'flex', gap: '12px' }}>
                     {issue.dod_items && issue.dod_items.length > 0 && (
-                      <span style={{ fontSize: '0.65rem', color: 'var(--pmo-gold)', fontWeight: 'bold' }}>
-                        {Math.round((issue.dod_items.filter(i => i.completed).length / issue.dod_items.length) * 100)}%
+                      <span style={{ fontSize: '0.72rem', color: 'var(--pmo-gold)', fontWeight: 'bold' }}>
+                        DoD: {issue.dod_items.filter(i => i.completed).length}/{issue.dod_items.length} ({Math.round((issue.dod_items.filter(i => i.completed).length / (issue.dod_items.length || 1)) * 100)}%)
                       </span>
                     )}
+                    {((issue.screenshots?.length || 0) + (issue.screenshot_url ? 1 : 0)) > 0 && (
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>
+                        📸 {(issue.screenshots?.length || 0) + (issue.screenshot_url ? 1 : 0)} Attachment(s)
+                      </span>
+                    )}
+                  </div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>
+                    Last update: {formatBrandedDate(issue.updated_at)}
                   </span>
-                  <span title="Pass Criteria: Integrated into master/main; verified in Production/Live.">{issue.test_sit}</span>
-                  <span title="Pass Criteria: Explicit approval from Will in chat (AI PROHIBITED from marking ✅).">{issue.test_uat}</span>
                 </div>
               </div>
-            </div>
-
-            <div style={{ margin: '0.5rem 0 0.25rem 0', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--pmo-gold)', textTransform: 'uppercase' }}>Outcome Description</div>
-            <p style={{
-              margin: '0 0 0.75rem 0',
-              fontSize: '0.9rem',
-              color: 'var(--pmo-slate)',
-              whiteSpace: 'pre-wrap',
-              width: '100%',
-              display: 'block'
-            }}>
-              {issue.description}
-            </p>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '0.75rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem' }}>
-              <div style={{ color: 'var(--pmo-slate)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
-                {issue.dod_items && issue.dod_items.length > 0 && (
-                  <>
-                    <span>DoD: {issue.dod_items.filter(i => i.completed).length}/{issue.dod_items.length}</span>
-                    <span style={{ padding: '2px 6px', background: 'var(--bg-main)', borderRadius: '4px', color: 'var(--pmo-gold)', fontWeight: 'bold' }}>
-                      {Math.round((issue.dod_items.filter(i => i.completed).length / issue.dod_items.length) * 100)}%
-                    </span>
-                  </>
-                )}
-              </div>
-              <div style={{ color: 'var(--pmo-slate)', fontSize: '0.85rem' }}>
-                Updated: {issue.updated_at?.toMillis ? formatDate(new Date(issue.updated_at.toMillis()).toISOString()) : ''}
-              </div>
-            </div>
-          </div>
-        ))}
+            );
+          })
+        )}
       </div>
 
       {/* ── Issue Modal ── */}
@@ -633,6 +790,26 @@ export default function IssueTrackerTab() {
               </div>
               <button className="cancel-btn" onClick={() => setIsModalOpen(false)} style={{ fontSize: '1.2rem' }}>✕</button>
             </div>
+
+            {/* AI GATE BANNER */}
+            {formData.test_sit === '✅' && formData.test_uat !== '✅' && (
+              <div style={{ 
+                background: 'rgba(239, 68, 68, 0.1)', 
+                border: '1px solid #ef4444', 
+                borderRadius: '8px', 
+                padding: '1rem', 
+                marginBottom: '1.5rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '1rem'
+              }}>
+                <span style={{ fontSize: '1.5rem' }}>🚧</span>
+                <div>
+                  <div style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '0.9rem', textTransform: 'uppercase' }}>Manual UAT Gate Required</div>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>SIT is verified. Explicit human approval required to progress to UAT and Done.</div>
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleSave} className="capture-form">
               <div className="form-row">
@@ -728,6 +905,48 @@ export default function IssueTrackerTab() {
                 />
               </div>
 
+              {/* Screenshot Gallery Section */}
+              <div style={{ width: '100%', marginTop: '1rem', border: '1px dashed var(--border-subtle)', borderRadius: '8px', padding: '1rem', background: 'var(--bg-main)' }} onPaste={handlePaste}>
+                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <label className="slider-label" style={{ margin: 0 }}>📸 Screenshots & Attachments</label>
+                  {editingIssue ? (
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input type="file" id="screenshot-upload" multiple style={{ display: 'none' }} onChange={handleFileUpload} accept="image/*" />
+                      <label htmlFor="screenshot-upload" className="btn-secondary" style={{ padding: '4px 12px', fontSize: '0.8rem', cursor: 'pointer' }}>
+                        Upload
+                      </label>
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--pmo-slate)' }}>Save issue first to enable screenshots</span>
+                  )}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '0.75rem' }}>
+                  {/* Legacy Support */}
+                  {formData.screenshot_url && !formData.screenshots?.some(s => s.url === formData.screenshot_url) && (
+                    <div style={{ position: 'relative', border: '1px solid var(--pmo-gold)', borderRadius: '6px', overflow: 'hidden', height: '80px' }}>
+                      <img src={formData.screenshot_url} alt="Legacy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <div style={{ position: 'absolute', top: 2, left: 2, background: 'var(--pmo-gold)', color: 'black', fontSize: '8px', padding: '1px 3px', borderRadius: '3px', fontWeight: 'bold' }}>LEGACY</div>
+                    </div>
+                  )}
+
+                  {formData.screenshots?.map(s => (
+                    <div key={s.timestamp} style={{ position: 'relative', border: '1px solid var(--border-subtle)', borderRadius: '6px', overflow: 'hidden', height: '80px', background: 'var(--bg-card)' }}>
+                      <img src={s.url} alt={s.name} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in' }} onClick={() => window.open(s.url, '_blank')} />
+                      <button 
+                        type="button" 
+                        onClick={() => handleRemoveScreenshot(s.timestamp)}
+                        style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(239, 68, 68, 0.9)', color: 'white', border: 'none', borderRadius: '4px', width: '18px', height: '18px', cursor: 'pointer', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >✕</button>
+                    </div>
+                  ))}
+                  
+                  <div style={{ border: '1px dashed var(--border-subtle)', borderRadius: '6px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: '0.7rem', color: 'var(--pmo-slate)', padding: '0 4px' }}>
+                    Paste (Ctrl+V) or click Upload
+                  </div>
+                </div>
+              </div>
+
               <div className="form-row" style={{ alignItems: 'flex-start' }}>
                 <div style={{ flex: 1 }}>
                   <label className="slider-label">Status</label>
@@ -736,7 +955,7 @@ export default function IssueTrackerTab() {
                     value={formData.status}
                     onChange={e => setFormData(f => ({ ...f, status: e.target.value as any }))}
                   >
-                    {['Open', 'In Progress', 'UAT', 'Done', 'Parked'].map(s => (
+                    {['Captured', 'Comp', 'DoD', 'SIT', 'UAT', 'Done', 'Blocked'].map(s => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
@@ -770,18 +989,6 @@ export default function IssueTrackerTab() {
                 </div>
               </div>
 
-              {formData.test_sit === '✅' && formData.test_uat !== '✅' && (
-                <div style={{
-                  background: 'var(--pmo-gold-20)',
-                  padding: '0.75rem',
-                  borderRadius: '6px',
-                  fontSize: '0.85rem',
-                  border: '1px solid var(--pmo-gold)',
-                  marginBottom: '1rem'
-                }}>
-                  ⚠️ <strong>Manual Gate:</strong> UAT requires explicit approval from Will in chat before marking as passed.
-                </div>
-              )}
 
               {/* ── DoD Checklist ── */}
               <div style={{ marginTop: '1rem' }}>
@@ -820,6 +1027,7 @@ export default function IssueTrackerTab() {
                               onBlur={() => setEditingDoDIdx(null)}
                               onKeyDown={e => { if (e.key === 'Enter') setEditingDoDIdx(null); }}
                               autoFocus
+                              placeholder="Describe the task..."
                               style={{
                                 flex: 1, fontSize: '0.9rem', padding: '2px 6px',
                                 borderRadius: '4px', border: '1px solid var(--pmo-gold)',
@@ -851,6 +1059,52 @@ export default function IssueTrackerTab() {
                   )}
                 </div>
               </div>
+
+              {/* ── Change History ── */}
+              {editingIssue && (
+                <div style={{ marginTop: '1.5rem' }}>
+                  <label className="slider-label">Change History</label>
+                  <div style={{
+                    background: 'var(--bg-main)',
+                    padding: '0.75rem',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-subtle)',
+                    maxHeight: '180px',
+                    overflowY: 'auto',
+                    fontSize: '0.82rem'
+                  }}>
+                    {loadingHistory ? (
+                      <div style={{ color: 'var(--pmo-slate)', fontStyle: 'italic' }}>Loading history...</div>
+                    ) : history.length === 0 ? (
+                      <div style={{ color: 'var(--pmo-slate)', fontStyle: 'italic' }}>No change history recorded yet.</div>
+                    ) : (
+                      history.map((log: any) => (
+                        <div key={log.id} style={{ 
+                          marginBottom: '0.75rem', 
+                          paddingBottom: '0.75rem', 
+                          borderBottom: '1px solid var(--border-subtle)',
+                          lineHeight: '1.4'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                            <strong style={{ color: 'var(--pmo-gold)' }}>{log.updated_by}</strong>
+                            <span style={{ color: 'var(--pmo-slate)', fontSize: '0.75rem' }}>
+                              {formatBrandedDate(log.timestamp)}
+                            </span>
+                          </div>
+                          {Object.entries(log.changes || {}).map(([field, delta]: [string, any]) => (
+                            <div key={field} style={{ marginLeft: '8px' }}>
+                              <span style={{ color: 'var(--pmo-slate)', textTransform: 'capitalize' }}>{field.replace('_', ' ')}:</span>{' '}
+                              <span style={{ color: '#ff4757', textDecoration: 'line-through' }}>{String(delta.old || 'none')}</span>
+                              {' → '}
+                              <span style={{ color: 'var(--pmo-green)' }}>{String(delta.new)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="modal-actions">
                 <button type="button" className="cancel-btn" onClick={() => setIsModalOpen(false)}>Cancel</button>
