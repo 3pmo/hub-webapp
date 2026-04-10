@@ -213,7 +213,7 @@ function AIAdvisorPanel({ entries }: AIAdvisorPanelProps) {
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ color: e.color, fontWeight: 'bold', fontSize: '0.88rem' }}>{e.emoji} {e.name}</span>
-                <span style={{ fontSize: '0.72rem', color: 'var(--pmo-slate)' }}>{e.resetLabel}</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--pmo-gold)', fontWeight: 'bold' }}>{e.resetLabel}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <div style={{ flex: 1, height: '4px', background: 'var(--border-subtle)', borderRadius: '2px', overflow: 'hidden' }}>
@@ -237,6 +237,7 @@ function AIAdvisorPanel({ entries }: AIAdvisorPanelProps) {
 interface ProviderCardProps {
   title: string;
   subtitle?: string;
+  resetLabel?: string;
   usedTokens: number;
   limitTokens: number;
   costCents: number;
@@ -245,7 +246,7 @@ interface ProviderCardProps {
   children?: React.ReactNode;
 }
 
-function ProviderCard({ title, subtitle, usedTokens, limitTokens, costCents, lastUpdated, isManual, children }: ProviderCardProps) {
+function ProviderCard({ title, subtitle, resetLabel, usedTokens, limitTokens, costCents, lastUpdated, isManual, children }: ProviderCardProps) {
   const pct = limitTokens > 0 ? Math.min((usedTokens / limitTokens) * 100, 100) : 0;
 
   return (
@@ -254,6 +255,11 @@ function ProviderCard({ title, subtitle, usedTokens, limitTokens, costCents, las
         <div>
           <h3 className="cost-card-title">{title}</h3>
           {subtitle && <span style={{ fontSize: '0.75rem', color: 'var(--pmo-slate)', display: 'block', marginTop: '2px' }}>{subtitle}</span>}
+          {resetLabel && (
+            <span style={{ fontSize: '0.75rem', color: 'var(--pmo-gold)', fontWeight: 'bold', display: 'block', marginTop: '2px' }}>
+              ⏳ {resetLabel}
+            </span>
+          )}
         </div>
         <span className={`status-badge ${getStatusClass(pct)}`}>
           {pct > 80 ? 'Critical' : pct > 50 ? 'Warning' : 'Healthy'}
@@ -504,6 +510,9 @@ export default function CostTrackerTab() {
     onValue(snapshotRef, (snap) => {
       setSnapshot(snap.val());
       setLoading(false);
+    }, (err) => {
+      console.error('Firestore token_usage error:', err);
+      setLoading(false); // Clear loading even on error
     });
     return () => off(snapshotRef);
   }, []);
@@ -699,6 +708,7 @@ export default function CostTrackerTab() {
           <ProviderCard
             title="Claude Pro"
             subtitle="Anthropic Admin API · auto-refresh"
+            resetLabel={`Refreshes at ${timers.utc.resetGMT} (in ${timers.utc.countdown})`}
             usedTokens={claudeUsed}
             limitTokens={claudeLimit}
             costCents={claude.estimated_cost_cents || 0}
@@ -739,6 +749,7 @@ export default function CostTrackerTab() {
           <ProviderCard
             title="Gemini Pro"
             subtitle="Manual entry · Google AI Studio"
+            resetLabel={`Refreshes at ${timers.pacific.resetGMT} (in ${timers.pacific.countdown})`}
             usedTokens={geminiUsed}
             limitTokens={geminiLimit}
             costCents={gemini.estimated_cost_cents || 0}
@@ -759,6 +770,7 @@ export default function CostTrackerTab() {
           <ProviderCard
             title="Antigravity"
             subtitle="Manual entry · supplemental quota"
+            resetLabel={`Refreshes at ${timers.utc.resetGMT} (in ${timers.utc.countdown})`}
             usedTokens={agUsed}
             limitTokens={agLimit}
             costCents={antigravity.estimated_cost_cents || 0}
