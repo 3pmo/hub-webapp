@@ -265,11 +265,7 @@ export default function StatusTab() {
       {!issuesLoading && graphData.length > 0 && (
         <div className="card status-graph-card">
           <div className="status-graph-header">
-            <h3 className="status-graph-title">Work Evolution & Remediation Velocity</h3>
-            <div className="status-graph-meta">
-              <span className="status-graph-sub">All projects · {issues.length} lifetime items</span>
-              {lastUpdated && <span className="status-last-updated">Last Updated: {lastUpdated}</span>}
-            </div>
+            <h3>Cumulative System Maturity</h3>
           </div>
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={graphData} margin={{ top: 12, right: 30, left: -20, bottom: 0 }}>

@@ -1,61 +1,67 @@
 /**
  * sync-registry.mjs
  * Syncs the project registry from Firestore (hub-3pmo / projects collection)
- * to src/assets/projects.json for use by the StatusTab UI.
- *
- * Replaces the old approach of parsing project-registry.md (archived 2026-03-28).
- *
- * Usage (runs automatically via npm run dev / npm run build):
- *   node scripts/sync-registry.mjs
- *
- * Service account: scripts/sa-hub-3pmo.json
- * Firestore project: hub-3pmo  |  Collection: projects
+ * to _System/projects.json for tool use.
+ * 
+ * Migrated to Firestore REST API (no firebase-admin dependency).
  */
 
-import admin from 'firebase-admin';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
+import { 
+  getAccessToken, 
+  fromFirestoreFields, 
+  firestoreRequest 
+} from './firestore-rest.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
-const require    = createRequire(import.meta.url);
 
-const OUTPUT_PATH  = path.join(__dirname, '../src/assets/projects.json');
-const META_PATH    = path.join(__dirname, '../src/assets/sync-meta.json');
-const SA_PATH      = path.join(__dirname, 'sa-hub-3pmo.json');
-
-// ── CI guard ────────────────────────────────────────────────────────────────
-if (process.env.CI) {
-  console.log('CI environment detected — skipping registry sync (using existing src/assets/projects.json)');
-  process.exit(0);
-}
+// ── Path resolution ──────────────────────────────────────────────────────────
+const SA_PATHS = [
+  path.join(__dirname, '../firestore-service-account.json'), // _System/scripts location
+  path.join(__dirname, 'sa-hub-3pmo.json'),                  // 3pmo-hub/scripts location
+];
+const SA_PATH = SA_PATHS.find(p => fs.existsSync(p));
+const PROJECT_ID = 'hub-3pmo';
+const OUTPUT_PATH  = path.join(__dirname, '../projects.json');
+const META_PATH    = path.join(__dirname, '../sync-meta.json');
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Convert a Firestore Timestamp (or ISO string) to a YYYY-MM-DD string. */
+/**
+ * Format date values to YYYY-MM-DD
+ */
 function toDateStr(value) {
   if (!value) return null;
-  // Firestore Admin SDK returns Timestamp objects with a .toDate() method
-  if (typeof value.toDate === 'function') {
-    return value.toDate().toISOString().slice(0, 10);
+  // Firestore REST returns ISO strings for timestamps
+  try {
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return String(value).slice(0, 10);
+    return d.toISOString().slice(0, 10);
+  } catch (e) {
+    return String(value).slice(0, 10);
   }
-  // Fallback: already a string
-  return String(value).slice(0, 10);
 }
 
-/** Map a Firestore project document to the shape expected by StatusTab. */
+/**
+ * Map Firestore document fields to the internal project object
+ */
 function mapProject(doc) {
-  const d = doc.data();
-
-  // Backlog string: "🐛 0 Bugs | 🚀 1 Enhancement"
+  const slug = doc.name.split('/').pop();
+  const d = fromFirestoreFields(doc.fields);
+  
   const bugs = d.backlog_bugs ?? 0;
   const enh  = d.backlog_enhancements ?? 0;
   const backlog = `🐛 ${bugs} Bug${bugs !== 1 ? 's' : ''} | 🚀 ${enh} Enhancement${enh !== 1 ? 's' : ''}`;
 
+  // NEWLINE PERSISTENCE: Firestore REST returns raw strings with preserved \n.
+  // JSON.stringify will escape them as \n which is desired for the JSON cache.
+
   return {
-    name:        d.name        ?? doc.id,
+    slug:        slug,
+    name:        d.name        ?? slug,
     status:      d.status      ?? null,
     description: d.description ?? null,
     current_ai:  d.current_ai  ?? null,
@@ -69,10 +75,13 @@ function mapProject(doc) {
     parent_project_id: d.parent_project_id ?? null,
     tags:        d.tags        ?? [],
     category:    d.category    ?? null,
+    updated_at:  d.updated_at  ?? null,
   };
 }
 
-/** Sort order: standing → active → tabs, then alphabetically within each group. */
+/**
+ * Canonical sort order for projects
+ */
 function sortProjects(projects) {
   const order = { standing: 0, active: 1, tab: 2 };
   return [...projects].sort((a, b) => {
@@ -85,48 +94,45 @@ function sortProjects(projects) {
 
 // ── Main ────────────────────────────────────────────────────────────────────
 
-console.log('Syncing project registry from Firestore...');
+async function main() {
+  console.log('Syncing project registry from Firestore REST API...');
 
-try {
-  // Verify service account exists
-  if (!fs.existsSync(SA_PATH)) {
-    throw new Error(`Service account not found at ${SA_PATH}`);
-  }
+  try {
+    if (!fs.existsSync(SA_PATH)) {
+      throw new Error(`Service account not found at ${SA_PATH}`);
+    }
 
-  const serviceAccount = require(SA_PATH);
+    const serviceAccount = JSON.parse(fs.readFileSync(SA_PATH, 'utf-8'));
+    const token = await getAccessToken(serviceAccount);
 
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    projectId:  'hub-3pmo',
-  });
+    // Fetch all projects from collection
+    const results = await firestoreRequest(PROJECT_ID, 'GET', 'projects', null, token);
 
-  const firestore = admin.firestore();
-  const snapshot  = await firestore.collection('projects').get();
+    if (!results || !results.documents) {
+      console.warn('⚠️  Firestore returned 0 documents — writing empty projects.json');
+      fs.writeFileSync(OUTPUT_PATH, '[]');
+    } else {
+      const projects = sortProjects(results.documents.map(mapProject));
+      
+      // DATA HARDENING: verify total size before writing
+      const jsonContent = JSON.stringify(projects, null, 2);
+      if (jsonContent.length > 5 * 1024 * 1024) { // 5MB sanity check
+         console.warn('⚠️  Registry cache exceeds 5MB! Check for data bloat.');
+      }
 
-  if (snapshot.empty) {
-    console.warn('⚠️  Firestore returned 0 documents — writing empty projects.json');
-    fs.writeFileSync(OUTPUT_PATH, '[]');
-  } else {
-    const projects = sortProjects(snapshot.docs.map(mapProject));
+      fs.writeFileSync(OUTPUT_PATH, jsonContent);
+      console.log(`✅ Synced ${projects.length} projects from Firestore to _System/projects.json`);
+    }
 
-    const dir = path.dirname(OUTPUT_PATH);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(META_PATH, JSON.stringify({ 
+      last_sync: new Date().toISOString(),
+      sync_method: 'REST'
+    }, null, 2));
 
-    fs.writeFileSync(OUTPUT_PATH, JSON.stringify(projects, null, 2));
-    console.log(`✅ Synced ${projects.length} projects from Firestore to src/assets/projects.json`);
-  }
-
-  fs.writeFileSync(META_PATH, JSON.stringify({ last_sync: new Date().toISOString() }, null, 2));
-
-} catch (err) {
-  console.error('❌ Failed to sync registry from Firestore:', err.message);
-  // Don't fail the build — fall back to existing projects.json if it exists
-  if (!fs.existsSync(OUTPUT_PATH)) {
-    const dir = path.dirname(OUTPUT_PATH);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(OUTPUT_PATH, '[]');
-    console.warn('⚠️  Created empty projects.json as fallback');
-  } else {
-    console.warn('⚠️  Using existing projects.json as fallback');
+  } catch (err) {
+    console.error('❌ Failed to sync registry from Firestore:', err.message);
+    process.exit(1);
   }
 }
+
+main();

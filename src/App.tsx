@@ -107,7 +107,7 @@ export default function App() {
           </div>
         </div>
         <footer className="app-footer" style={{ borderTop: '1px solid var(--border-subtle)', padding: '0.75rem 1rem', color: 'var(--pmo-gold)', textAlign: 'center', fontSize: '0.75rem', opacity: 0.8 }}>
-          {formatDateTime(syncMeta.last_sync)}
+          Ecosystem Last Synchronized: <span style={{ color: 'var(--pmo-green)', fontWeight: 600 }}>{formatDateTime(syncMeta.last_sync)}</span>
         </footer>
       </main>
     </div>

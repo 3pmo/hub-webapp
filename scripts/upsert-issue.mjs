@@ -1,38 +1,62 @@
 /**
  * upsert-issue.mjs
+ * Redesigned to use Firestore REST API (no firebase-admin dependency).
  * Add or update a single issue document in Firestore (hub-3pmo / issues).
- *
- * Usage:
- *   node scripts/upsert-issue.mjs --file=./issue-data.json
- *
- * The JSON file should contain issue schema fields.
- * Optional: id (Firestore document ID). If provided, it merges. If not, it creates a new document.
- * Required if creating: project_slug, type, title.
- *
- * Service account: scripts/sa-hub-3pmo.json
- * Firestore project: hub-3pmo  |  Collection: issues
  */
 
-import admin from 'firebase-admin';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
+import { 
+  getAccessToken, 
+  toFirestoreFields, 
+  fromFirestoreFields, 
+  firestoreRequest 
+} from './firestore-rest.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
-const require    = createRequire(import.meta.url);
 
-const SA_PATH = path.join(__dirname, 'sa-hub-3pmo.json');
+// ── Path resolution ──────────────────────────────────────────────────────────
+const SA_PATHS = [
+  path.join(__dirname, '../firestore-service-account.json'), // _System/scripts location
+  path.join(__dirname, 'sa-hub-3pmo.json'),                  // 3pmo-hub/scripts location
+];
+const SA_PATH = SA_PATHS.find(p => fs.existsSync(p));
+const PROJECT_ID = 'hub-3pmo';
 
 // ── Parse args ───────────────────────────────────────────────────────────────
 const args    = process.argv.slice(2);
+const listArg = args.find(a => a === '--list');
+const projectArg = args.find(a => a.startsWith('--project='));
 const fileArg = args.find(a => a.startsWith('--file='));
 const filePath = fileArg ? fileArg.split('=').slice(1).join('=') : null;
 
-if (!filePath) {
-  console.error('Usage: node scripts/upsert-issue.mjs --file=./issue-data.json');
+if (!listArg && !filePath) {
+  console.error('Usage: node upsert-issue.mjs --file=./issue-data.json');
+  console.error('       node upsert-issue.mjs --list --project={slug}');
   process.exit(1);
+}
+
+// ── Connect ──────────────────────────────────────────────────────────────────
+if (!fs.existsSync(SA_PATH)) {
+  console.error(`Service account not found at ${SA_PATH}`);
+  process.exit(1);
+}
+
+const serviceAccount = JSON.parse(fs.readFileSync(SA_PATH, 'utf-8'));
+const token = await getAccessToken(serviceAccount);
+
+// ── Handle Commands ─────────────────────────────────────────────────────────
+if (listArg) {
+  const projectSlug = projectArg ? projectArg.split('=').slice(1).join('=') : null;
+  if (!projectSlug) {
+    console.error('Usage: node upsert-issue.mjs --list --project={slug}');
+    process.exit(1);
+  }
+  
+  await listIssues(projectSlug);
+  process.exit(0);
 }
 
 const resolvedPath = path.resolve(filePath);
@@ -43,43 +67,67 @@ if (!fs.existsSync(resolvedPath)) {
 
 // ── Load data ────────────────────────────────────────────────────────────────
 const issueData = JSON.parse(fs.readFileSync(resolvedPath, 'utf-8'));
-
 const { id, ...fields } = issueData;
 
-if (!id) {
-  if (!fields.project_slug || !fields.type || !fields.title) {
-    console.error('Error: new issues must include project_slug, type, and title');
-    process.exit(1);
-  }
-}
-
-// ── Connect ──────────────────────────────────────────────────────────────────
-if (!fs.existsSync(SA_PATH)) {
-  console.error(`Service account not found at ${SA_PATH}`);
+if (!id && (!fields.project_slug || !fields.type || !fields.title)) {
+  console.error('Error: new issues must include project_slug, type, and title');
   process.exit(1);
 }
 
-const serviceAccount = require(SA_PATH);
+// ── Functions ────────────────────────────────────────────────────────────────
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  projectId:  'hub-3pmo',
-});
+async function listIssues(slug) {
+  console.log(`\nFetching issues for project: ${slug}...`);
+  
+  // REST runQuery payload
+  const query = {
+    structuredQuery: {
+      from: [{ collectionId: 'issues' }],
+      where: {
+        fieldFilter: {
+          field: { fieldPath: 'project_slug' },
+          op: 'EQUAL',
+          value: { stringValue: slug }
+        }
+      }
+    }
+  };
 
-const firestore = admin.firestore();
+  try {
+    const results = await firestoreRequest(PROJECT_ID, 'POST', ':runQuery', query, token);
+    
+    const issues = results
+      .filter(r => r.document)
+      .map(r => {
+        const doc = r.document;
+        const id = doc.name.split('/').pop();
+        return { id, ...fromFirestoreFields(doc.fields) };
+      })
+      .filter(doc => !['Done', 'Closed', 'Parked'].includes(doc.status));
 
-// ── Timestamps ───────────────────────────────────────────────────────────────
-const now = admin.firestore.Timestamp.now();
+    issues.sort((a, b) => (a.priority || 'P3').localeCompare(b.priority || 'P3'));
+
+    if (issues.length === 0) {
+      console.log('No open issues found.');
+    } else {
+      console.log(JSON.stringify(issues, null, 2));
+    }
+  } catch (err) {
+    console.error('Failed to list issues:', err.message);
+  }
+}
+
+// ── Main Script ─────────────────────────────────────────────────────────────
+
+const now = new Date();
 const toTimestamp = (value) => {
   if (!value) return null;
   if (value === '__now__') return now;
-  if (value && typeof value === 'object' && 'seconds' in value) return value;
-  return admin.firestore.Timestamp.fromDate(new Date(value));
+  return new Date(value);
 };
 
-// Convert any date string fields to Timestamps
-const dateFields = ['created_at', 'updated_at'];
-const processed = { ...fields, updated_at: now };
+const dateFields = ['created_at', 'updated_at', 'logged_date'];
+const processed = { ...fields, updated_at: now, updated_by: 'GeminiCLI' };
 
 for (const f of dateFields) {
   if (f in processed) {
@@ -87,40 +135,48 @@ for (const f of dateFields) {
   }
 }
 
-let docRef;
-
-if (id) {
-  docRef = firestore.collection('issues').doc(id);
-  // Do a get first to verify it exists if we aren't creating it from scratch
-  const existing = await docRef.get();
-  if (!existing.exists && !processed.created_at) {
-     processed.created_at = now;
-     console.log(`  → New document (provided ID) — setting created_at to now`);
+let docId = id;
+if (docId) {
+  // Check if it exists and preserve created_at if not provided
+  try {
+    const existing = await firestoreRequest(PROJECT_ID, 'GET', `issues/${docId}`, null, token);
+    if (existing && !processed.created_at) {
+      const data = fromFirestoreFields(existing.fields);
+      processed.created_at = data.created_at ? new Date(data.created_at) : now;
+    }
+  } catch (err) {
+    if (!processed.created_at) processed.created_at = now;
   }
 } else {
-  docRef = firestore.collection('issues').doc();
+  // Generate random ID or let firestore handle it (REST POST issues)
   processed.created_at = processed.created_at || now;
-  console.log(`  → New document (auto-generated ID: ${docRef.id})`);
 }
 
-// Provide sensible defaults for a new issue if not passed
-if (!id || processed.created_at === now) {
-  if (!processed.status) processed.status = 'Open';
-  if (!processed.priority) processed.priority = 'P4';
-  if (!processed.test_compile) processed.test_compile = '⬜';
-  if (!processed.test_dod) processed.test_dod = '⬜';
+// Defaults for new issues
+if (!docId || processed.created_at === now) {
+  if (!processed.status) processed.status = 'New';
+  if (!processed.priority) processed.priority = 'P2';
+  if (!processed.test_unit) processed.test_unit = '⬜';
   if (!processed.test_sit) processed.test_sit = '⬜';
   if (!processed.test_uat) processed.test_uat = '⬜';
-  if (!processed.dod_items) processed.dod_items = [];
 }
 
 // ── Write ────────────────────────────────────────────────────────────────────
-console.log(`\nUpserting issue: ${docRef.id}`);
-console.log('Fields:', JSON.stringify(
-  { ...processed, updated_at: '(now)', created_at: processed.created_at === now ? '(now)' : '(existing/timestamp)' },
-  null, 2
-));
-
-await docRef.set(processed, { merge: true });
-
-console.log(`\n✅ Issue "${docRef.id}" written to Firestore hub-3pmo/issues`);
+try {
+  let result;
+  if (docId) {
+    // PATCH to specific document
+    const payload = { fields: toFirestoreFields(processed) };
+    result = await firestoreRequest(PROJECT_ID, 'PATCH', `issues/${docId}`, payload, token);
+  } else {
+    // POST to collection (create new)
+    const payload = { fields: toFirestoreFields(processed) };
+    result = await firestoreRequest(PROJECT_ID, 'POST', 'issues', payload, token);
+    docId = result.name.split('/').pop();
+  }
+  
+  console.log(`\n✅ Issue "${docId}" written to Firestore hub-3pmo/issues`);
+} catch (err) {
+  console.error('Failed to write issue:', err.message);
+  process.exit(1);
+}
