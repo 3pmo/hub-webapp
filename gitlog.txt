@@ -1,0 +1,25 @@
+63d72aa fix(issue-tracker): force Priority as first sort option and confirm sort defaults
+d4ab498 feat(issue-tracker): final stabilization and enhancements (defaults, sort, and metadata fixes)
+aeb0794 feat: phase 2 enhancements (auto-refresh, project auto-fill, AI DoD)
+1fb5402 feat: stabilize UI, rename description to Outcome Description, and fix modal scroll
+494c87c Merge branch 'master' of https://github.com/3pmo/3pmo-hub
+738c1e7 style(issue-tracker): show full issue ID in grid card for consistency with modal
+46736e6 RE-TRIGGER: Final dashboard refinements
+64d5a8d UI: final Status Dashboard refinements (Live Timestamp, Pluralization, Wrapping, Alignment)
+f0c2bbe UI: remove redundant Refresh button (#KkvylY cleanup)
+0040603 FEAT: refactor Status dashboard to live Firestore project sync (#business-missing)
+5429114 fix(status): resolve 'Invalid Date' in issues graph (#a0oY7P)
+68bab61 feat(issues): stats, filters, and footer polish
+1a43948 feat(issue-tracker): integrated live search, radio buttons, voice capture, and hardened firestore rules. merged status tab live kpi rebuild.
+5225812 fix(status): skip unparseable dates in issue graph to prevent Invalid Date labels
+fd442ca fix(status): guard logged_date Timestamp coercion to prevent slice crash
+4c913fb feat(status): reapply 5 issue fixes with other agent's chip style
+2245141 feat(status): live issue counts, graph, Drive URL, KPI stats, refresh button
+1cf40e7 feat(issue-tracker): deploy 4-field testing schema and DoD checklist
+bae1b38 feat(issue-tracker): stat tiles, form defaults, move nav to Control
+65ccae6 session close: issue-tracker complete 2026-03-30
+36ef93f feat(issue-tracker): completed Stream C - Issue Form Modal with test cycle logic
+75ba8e2 chore(deploy): add firestore to deploy targets
+a7fd58f feat(issue-tracker): completed Stream B - IssueTrackerTab native list component
+2075297 feat(issue-tracker): completed Stream A - firestore rules, upsert/migrate scripts, onIssueWrite func
+f7c8054 Auto-registered project issue-tracker
