@@ -2,8 +2,8 @@
   "rules": {
     "hub_status": {
       "token_usage": {
-        ".read": true,
-        ".write": true
+        ".read": "auth != null",
+        ".write": "auth != null"
       },
       "$other": {
         ".read": "auth != null",
@@ -11,8 +11,8 @@
       }
     },
     "hub_cost_tracker": {
-      ".read": true,
-      ".write": true
+      ".read": "auth != null",
+      ".write": "auth != null"
     },
     "thoughts": {
       ".read": "auth != null",
