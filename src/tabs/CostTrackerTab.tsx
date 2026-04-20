@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { db, functions } from '../services/firebase';
+import { db, functions, auth } from '../services/firebase';
 import { ref, onValue, off, set } from 'firebase/database';
 import { httpsCallable } from 'firebase/functions';
+import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from 'firebase/auth';
+import type { User } from 'firebase/auth';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend
@@ -492,6 +494,8 @@ function ManualEntryPanel({ isOpen, onClose, onSaved }: ManualEntryPanelProps) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function CostTrackerTab() {
+  const [user, setUser] = useState<User | null>(null);
+  const [authError, setAuthError] = useState('');
   const [snapshot, setSnapshot] = useState<TokenUsageSnapshot | null>(null);
   const [chartData, setChartData] = useState<DailyEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -504,8 +508,18 @@ export default function CostTrackerTab() {
     pacific: timeUntilMidnightInGMT('America/Los_Angeles')
   });
 
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
+    return () => unsub();
+  }, []);
+
   // Subscribe to snapshot
   useEffect(() => {
+    if (!user) {
+      setSnapshot(null);
+      setLoading(false);
+      return;
+    }
     const snapshotRef = ref(db, 'hub_status/token_usage');
     onValue(snapshotRef, (snap) => {
       setSnapshot(snap.val());
@@ -515,10 +529,11 @@ export default function CostTrackerTab() {
       setLoading(false); // Clear loading even on error
     });
     return () => off(snapshotRef);
-  }, []);
+  }, [user]);
 
   // Fetch 7-day time-series for chart
   const fetchChartData = () => {
+    if (!user) return;
     const days = lastNDays(7);
     const providers = ['claude', 'gemini', 'antigravity'] as const;
     const accumulated: Record<string, Partial<DailyEntry>> = {};
@@ -557,7 +572,7 @@ export default function CostTrackerTab() {
 
   useEffect(() => {
     fetchChartData();
-  }, []);
+  }, [user]);
 
   // Tick the reset countdown every second
   useEffect(() => {
@@ -569,6 +584,17 @@ export default function CostTrackerTab() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (err: any) {
+      console.error("[CostTracker] Sign-In Error:", err);
+      setAuthError(`Google Sign-In failed: ${err.message || 'Check Console'}`);
+    }
+  };
 
   // Refresh Claude via Cloud Function
   const handleRefresh = async () => {
@@ -592,6 +618,20 @@ export default function CostTrackerTab() {
   };
 
   if (loading) return <div className="loading">Initializing Spend Tracker…</div>;
+
+  if (!user) {
+    return (
+      <div className="org-auth">
+        <div className="card" style={{ maxWidth: 360, margin: '4rem auto' }}>
+          <h3>Sign In to Cost Tracker</h3>
+          <form onSubmit={handleLogin} className="auth-form">
+            {authError && <p className="error-msg">{authError}</p>}
+            <button type="submit" style={{ width: '100%' }}>Sign In with Google</button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   const { claude, gemini, antigravity } = snapshot || {};
 
